@@ -90,10 +90,14 @@ public class IntegerVector
 	/**
 	 * Create a new IntegerVector from an existing MTBDD representation of an array.
 	 */
-	public IntegerVector(JDDNode dd, JDDVars vars, ODDNode odd)
+	public IntegerVector(JDDNode dd, JDDVars vars, ODDNode odd) throws PrismException
 	{
+		long numStates = odd.getEOff() + odd.getTOff();
+		if (numStates > Integer.MAX_VALUE) {
+			throw new PrismNotSupportedException("Can not create IntegerVector with more than " + Integer.MAX_VALUE + " states, have " + numStates + " states");
+		}
 		v = IV_ConvertMTBDD(dd.ptr(), vars.array(), vars.n(), odd.ptr());
-		n = (int)(odd.getEOff() + odd.getTOff());
+		n = (int)numStates;
 	}
 	
 	private native long IV_ConvertMTBDD(long dd, long vars, int num_vars, long odd);
