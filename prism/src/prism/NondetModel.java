@@ -198,7 +198,7 @@ public class NondetModel extends ProbModel
 
 	// do reachability
 
-	public void doReachability()
+	public void doReachability() throws PrismException
 	{
 		JDDNode tmp;
 
@@ -216,6 +216,7 @@ public class NondetModel extends ProbModel
 		// build odd, clear old one
 		if (odd != null) {
 			ODDUtils.ClearODD(odd);
+			odd = null;
 		}
 		odd = ODDUtils.BuildODD(reach, allDDRowVars);
 	}
