@@ -41,7 +41,7 @@ import prism.PrismLangException;
  * 
  * @author Ernst Moritz Hahn <emhahn@cs.ox.ac.uk> (University of Oxford)
  */
-public final class BigRational implements Comparable<BigRational>
+public final class BigRational extends Number implements Comparable<BigRational>
 {
 	/** the BigInteger "-1" */
 	private final static BigInteger BMONE = BigInteger.ONE.negate();
@@ -834,4 +834,50 @@ public final class BigRational implements Comparable<BigRational>
 		}
 		return value;
 	}
+
+    /**
+     * Returns the value of the specified number as an {@code int},
+     * which may involve rounding or truncation.
+     *
+     * @return  the numeric value represented by this object after conversion
+     *          to type {@code int}.
+     */
+	@Override
+	public int intValue()
+	{
+		if (isSpecial()) {
+			if (isInf()) return Integer.MAX_VALUE;
+			if (isMInf()) return Integer.MIN_VALUE;
+			if (isNaN()) return 0;  // per Java Language Specification
+		}
+		if (!isInteger()) {
+			throw new NumberFormatException("Can not convert fractional number to int");
+		}
+		int value = getNum().intValue();
+		if (!getNum().equals(new BigInteger(Integer.toString(value)))) {
+			throw new NumberFormatException("Can not convert BigInteger to int, value out of range");
+		}
+		return value;
+	}
+
+	@Override
+	public long longValue()
+	{
+		if (!isInteger()) {
+			throw new NumberFormatException("Can not convert fractional number to long");
+		}
+		long value = getNum().longValue();
+		if (!getNum().equals(new BigInteger(Long.toString(value)))) {
+			throw new NumberFormatException("Can not convert BigInteger to long, value out of range");
+		}
+		return value;
+	}
+
+	@Override
+	public float floatValue()
+	{
+		// TODO JK: Better precision?
+		return (float)doubleValue();
+	}
+	
 }
