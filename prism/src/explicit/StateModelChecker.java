@@ -436,7 +436,7 @@ public class StateModelChecker extends PrismComponent
 
 		// Do model checking and store result vector
 		timer = System.currentTimeMillis();
-		// check expression for all states (null => statesOfInterest=all)
+		// check expression for all states (null => default context, all states)
 		vals = checkExpression(model, expr, null);
 		timer = System.currentTimeMillis() - timer;
 		mainLog.println("\nTime for model checking: " + timer / 1000.0 + " seconds.");
@@ -462,28 +462,32 @@ public class StateModelChecker extends PrismComponent
 	 * For other required info (labels, reward structures, etc.), use the methods
 	 * {@link #setModulesFile} and {@link #setPropertiesFile}
 	 * to attach the original model/properties files.
-	 * @param statesOfInterest a set of states for which results should be calculated (null = all states).
-	 *        The calculated values for states not of interest are arbitrary and should to be ignored.
+	 * <br>
+	 * An optional ComputationContext allows certain optimisations to be performed,
+	 * e.g., only computing results for a subset of the states. 
+	 * @param model the model
+	 * @param expr the expression
+	 * @param context a ComputationContext (optional, may be {@code null})
 	 */
-	public StateValues checkExpression(Model model, Expression expr, BitSet statesOfInterest) throws PrismException
+	public StateValues checkExpression(Model model, Expression expr, ComputationContext context) throws PrismException
 	{
 		StateValues res = null;
 
 		// If-then-else
 		if (expr instanceof ExpressionITE) {
-			res = checkExpressionITE(model, (ExpressionITE) expr, statesOfInterest);
+			res = checkExpressionITE(model, (ExpressionITE) expr, context);
 		}
 		// Binary ops
 		else if (expr instanceof ExpressionBinaryOp) {
-			res = checkExpressionBinaryOp(model, (ExpressionBinaryOp) expr, statesOfInterest);
+			res = checkExpressionBinaryOp(model, (ExpressionBinaryOp) expr, context);
 		}
 		// Unary ops
 		else if (expr instanceof ExpressionUnaryOp) {
-			res = checkExpressionUnaryOp(model, (ExpressionUnaryOp) expr, statesOfInterest);
+			res = checkExpressionUnaryOp(model, (ExpressionUnaryOp) expr, context);
 		}
 		// Functions
 		else if (expr instanceof ExpressionFunc) {
-			res = checkExpressionFunc(model, (ExpressionFunc) expr, statesOfInterest);
+			res = checkExpressionFunc(model, (ExpressionFunc) expr, context);
 		}
 		// Identifiers
 		else if (expr instanceof ExpressionIdent) {
@@ -502,25 +506,25 @@ public class StateModelChecker extends PrismComponent
 		else if (expr instanceof ExpressionFormula) {
 			// This should have been defined or expanded by now.
 			if (((ExpressionFormula) expr).getDefinition() != null)
-				return checkExpression(model, ((ExpressionFormula) expr).getDefinition(), statesOfInterest);
+				return checkExpression(model, ((ExpressionFormula) expr).getDefinition(), context);
 			else
 				throw new PrismException("Unexpanded formula \"" + ((ExpressionFormula) expr).getName() + "\"");
 		}
 		// Variables
 		else if (expr instanceof ExpressionVar) {
-			res = checkExpressionVar(model, (ExpressionVar) expr, statesOfInterest);
+			res = checkExpressionVar(model, (ExpressionVar) expr, context);
 		}
 		// Labels
 		else if (expr instanceof ExpressionLabel) {
-			res = checkExpressionLabel(model, (ExpressionLabel) expr, statesOfInterest);
+			res = checkExpressionLabel(model, (ExpressionLabel) expr, context);
 		}
 		// Property refs
 		else if (expr instanceof ExpressionProp) {
-			res = checkExpressionProp(model, (ExpressionProp) expr, statesOfInterest);
+			res = checkExpressionProp(model, (ExpressionProp) expr, context);
 		}
 		// Filter
 		else if (expr instanceof ExpressionFilter) {
-			res = checkExpressionFilter(model, (ExpressionFilter) expr, statesOfInterest);
+			res = checkExpressionFilter(model, (ExpressionFilter) expr, context);
 		}
 		// Anything else - error
 		else {
@@ -532,17 +536,16 @@ public class StateModelChecker extends PrismComponent
 
 	/**
 	 * Model check a binary operator.
-	 * @param statesOfInterest the states of interest, see checkExpression()
 	 */
-	protected StateValues checkExpressionITE(Model model, ExpressionITE expr, BitSet statesOfInterest) throws PrismException
+	protected StateValues checkExpressionITE(Model model, ExpressionITE expr, ComputationContext context) throws PrismException
 	{
 		StateValues res1 = null, res2 = null, res3 = null;
 
 		// Check operands recursively
 		try {
-			res1 = checkExpression(model, expr.getOperand1(), statesOfInterest);
-			res2 = checkExpression(model, expr.getOperand2(), statesOfInterest);
-			res3 = checkExpression(model, expr.getOperand3(), statesOfInterest);
+			res1 = checkExpression(model, expr.getOperand1(), context.toStateFormulaContext());
+			res2 = checkExpression(model, expr.getOperand2(), context);
+			res3 = checkExpression(model, expr.getOperand3(), context);
 		} catch (PrismException e) {
 			if (res1 != null)
 				res1.clear();
@@ -561,17 +564,16 @@ public class StateModelChecker extends PrismComponent
 
 	/**
 	 * Model check a binary operator.
-	 * @param statesOfInterest the states of interest, see checkExpression()
 	 */
-	protected StateValues checkExpressionBinaryOp(Model model, ExpressionBinaryOp expr, BitSet statesOfInterest) throws PrismException
+	protected StateValues checkExpressionBinaryOp(Model model, ExpressionBinaryOp expr, ComputationContext context) throws PrismException
 	{
 		StateValues res1 = null, res2 = null;
 		int op = expr.getOperator();
 
 		// Check operands recursively
 		try {
-			res1 = checkExpression(model, expr.getOperand1(), statesOfInterest);
-			res2 = checkExpression(model, expr.getOperand2(), statesOfInterest);
+			res1 = checkExpression(model, expr.getOperand1(), context);
+			res2 = checkExpression(model, expr.getOperand2(), context);
 		} catch (PrismException e) {
 			if (res1 != null)
 				res1.clear();
@@ -587,15 +589,14 @@ public class StateModelChecker extends PrismComponent
 
 	/**
 	 * Model check a unary operator.
-	 * @param statesOfInterest the states of interest, see checkExpression()
 	 */
-	protected StateValues checkExpressionUnaryOp(Model model, ExpressionUnaryOp expr, BitSet statesOfInterest) throws PrismException
+	protected StateValues checkExpressionUnaryOp(Model model, ExpressionUnaryOp expr, ComputationContext context) throws PrismException
 	{
 		StateValues res1 = null;
 		int op = expr.getOperator();
 
 		// Check operand recursively
-		res1 = checkExpression(model, expr.getOperand(), statesOfInterest);
+		res1 = checkExpression(model, expr.getOperand(), context);
 
 		// Parentheses are easy - nothing to do:
 		if (op == ExpressionUnaryOp.PARENTH)
@@ -609,21 +610,20 @@ public class StateModelChecker extends PrismComponent
 
 	/**
 	 * Model check a function.
-	 * @param statesOfInterest the states of interest, see checkExpression()
 	 */
-	protected StateValues checkExpressionFunc(Model model, ExpressionFunc expr, BitSet statesOfInterest) throws PrismException
+	protected StateValues checkExpressionFunc(Model model, ExpressionFunc expr, ComputationContext context) throws PrismException
 	{
 		switch (expr.getNameCode()) {
 		case ExpressionFunc.MIN:
 		case ExpressionFunc.MAX:
-			return checkExpressionFuncNary(model, expr, statesOfInterest);
+			return checkExpressionFuncNary(model, expr, context);
 		case ExpressionFunc.FLOOR:
 		case ExpressionFunc.CEIL:
-			return checkExpressionFuncUnary(model, expr, statesOfInterest);
+			return checkExpressionFuncUnary(model, expr, context);
 		case ExpressionFunc.POW:
 		case ExpressionFunc.MOD:
 		case ExpressionFunc.LOG:
-			return checkExpressionFuncBinary(model, expr, statesOfInterest);
+			return checkExpressionFuncBinary(model, expr, context);
 		case ExpressionFunc.MULTI:
 			throw new PrismNotSupportedException("Multi-objective model checking is not supported for " + model.getModelType() + "s");
 		default:
@@ -631,13 +631,13 @@ public class StateModelChecker extends PrismComponent
 		}
 	}
 
-	protected StateValues checkExpressionFuncUnary(Model model, ExpressionFunc expr, BitSet statesOfInterest) throws PrismException
+	protected StateValues checkExpressionFuncUnary(Model model, ExpressionFunc expr, ComputationContext context) throws PrismException
 	{
 		StateValues res1 = null;
 		int op = expr.getNameCode();
 
 		// Check operand recursively
-		res1 = checkExpression(model, expr.getOperand(0), statesOfInterest);
+		res1 = checkExpression(model, expr.getOperand(0), context);
 
 		// Apply operation
 		try {
@@ -653,15 +653,15 @@ public class StateModelChecker extends PrismComponent
 		return res1;
 	}
 
-	protected StateValues checkExpressionFuncBinary(Model model, ExpressionFunc expr, BitSet statesOfInterest) throws PrismException
+	protected StateValues checkExpressionFuncBinary(Model model, ExpressionFunc expr, ComputationContext context) throws PrismException
 	{
 		StateValues res1 = null, res2 = null;
 		int op = expr.getNameCode();
 
 		// Check operands recursively
 		try {
-			res1 = checkExpression(model, expr.getOperand(0), statesOfInterest);
-			res2 = checkExpression(model, expr.getOperand(1), statesOfInterest);
+			res1 = checkExpression(model, expr.getOperand(0), context);
+			res2 = checkExpression(model, expr.getOperand(1), context);
 		} catch (PrismException e) {
 			if (res1 != null)
 				res1.clear();
@@ -685,19 +685,19 @@ public class StateModelChecker extends PrismComponent
 		return res1;
 	}
 
-	protected StateValues checkExpressionFuncNary(Model model, ExpressionFunc expr, BitSet statesOfInterest) throws PrismException
+	protected StateValues checkExpressionFuncNary(Model model, ExpressionFunc expr, ComputationContext context) throws PrismException
 	{
 		StateValues res1 = null, res2 = null;
 		int i, n, op = expr.getNameCode();
 
 		// Check first operand recursively
-		res1 = checkExpression(model, expr.getOperand(0), statesOfInterest);
+		res1 = checkExpression(model, expr.getOperand(0), context);
 		// Go through remaining operands
 		n = expr.getNumOperands();
 		for (i = 1; i < n; i++) {
 			// Check next operand recursively
 			try {
-				res2 = checkExpression(model, expr.getOperand(i), statesOfInterest);
+				res2 = checkExpression(model, expr.getOperand(i), context);
 			} catch (PrismException e) {
 				if (res2 != null)
 					res2.clear();
@@ -739,11 +739,10 @@ public class StateModelChecker extends PrismComponent
 
 	/**
 	 * Model check a variable reference.
-	 * @param statesOfInterest the states of interest, see checkExpression()
 	 */
-	protected StateValues checkExpressionVar(Model model, ExpressionVar expr, BitSet statesOfInterest) throws PrismException
+	protected StateValues checkExpressionVar(Model model, ExpressionVar expr, ComputationContext context) throws PrismException
 	{
-		// TODO (JK): optimize evaluation using statesOfInterest
+		// TODO (JK): optimize evaluation using states of interest, if available
 
 		int numStates = model.getNumStates();
 		StateValues res = new StateValues(expr.getType(), model);
@@ -766,11 +765,10 @@ public class StateModelChecker extends PrismComponent
 
 	/**
 	 * Model check a label.
-	 * @param statesOfInterest the states of interest, see checkExpression()
 	 */
-	protected StateValues checkExpressionLabel(Model model, ExpressionLabel expr, BitSet statesOfInterest) throws PrismException
+	protected StateValues checkExpressionLabel(Model model, ExpressionLabel expr, ComputationContext context) throws PrismException
 	{
-		// TODO: optimize evaluation using statesOfInterest
+		// TODO: optimize evaluation using states of interest, if available
 
 		LabelList ll;
 		int i;
@@ -802,7 +800,7 @@ public class StateModelChecker extends PrismComponent
 				i = ll.getLabelIndex(expr.getName());
 				if (i != -1) {
 					// check recursively
-					return checkExpression(model, ll.getLabel(i), statesOfInterest);
+					return checkExpression(model, ll.getLabel(i), context);
 				}
 			}
 			// Or just the model file
@@ -811,7 +809,7 @@ public class StateModelChecker extends PrismComponent
 				i = ll.getLabelIndex(expr.getName());
 				if (i != -1) {
 					// check recursively
-					return checkExpression(model, ll.getLabel(i), statesOfInterest);
+					return checkExpression(model, ll.getLabel(i), context);
 				}
 			}
 		}
@@ -820,13 +818,13 @@ public class StateModelChecker extends PrismComponent
 
 	// Check property ref
 
-	protected StateValues checkExpressionProp(Model model, ExpressionProp expr, BitSet statesOfInterest) throws PrismException
+	protected StateValues checkExpressionProp(Model model, ExpressionProp expr, ComputationContext context) throws PrismException
 	{
 		// Look up property and check recursively
 		Property prop = propertiesFile.lookUpPropertyObjectByName(expr.getName());
 		if (prop != null) {
 			mainLog.println("\nModel checking : " + prop);
-			return checkExpression(model, prop.getExpression(), statesOfInterest);
+			return checkExpression(model, prop.getExpression(), context);
 		} else {
 			throw new PrismException("Unknown property reference " + expr);
 		}
@@ -834,7 +832,7 @@ public class StateModelChecker extends PrismComponent
 
 	// Check filter
 
-	protected StateValues checkExpressionFilter(Model model, ExpressionFilter expr, BitSet statesOfInterest) throws PrismException
+	protected StateValues checkExpressionFilter(Model model, ExpressionFilter expr, ComputationContext context) throws PrismException
 	{
 		// Translate filter
 		Expression filter = expr.getFilter();
@@ -846,7 +844,7 @@ public class StateModelChecker extends PrismComponent
 		// Store some more info
 		String filterStatesString = filterTrue ? "all states" : "states satisfying filter";
 
-		// get the BitSet of states matching the filter, without taking statesOfInterest into account
+		// get the BitSet of states matching the filter, with a null context (for all states of the model)
 		BitSet bsFilter = checkExpression(model, filter, null).getBitSet();
 
 		// Check if filter state set is empty; we treat this as an error
@@ -883,7 +881,7 @@ public class StateModelChecker extends PrismComponent
 			currentFilter = null;
 		}
 		// Check operand recursively, using bsFilter as statesOfInterest
-		StateValues vals = checkExpression(model, expr.getOperand(), bsFilter);
+		StateValues vals = checkExpression(model, expr.getOperand(), new ComputationContext(bsFilter));
 
 		// Compute result according to filter type
 		StateValues resVals = null;

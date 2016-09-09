@@ -52,7 +52,7 @@ public class CTMCModelChecker extends ProbModelChecker
 	// Model checking functions
 
 	@Override
-	protected StateValues checkProbPathFormulaLTL(Model model, Expression expr, boolean qual, MinMax minMax, BitSet statesOfInterest) throws PrismException
+	protected StateValues checkProbPathFormulaLTL(Model model, Expression expr, boolean qual, MinMax minMax, ComputationContext context) throws PrismException
 	{
 		if (Expression.containsTemporalTimeBounds(expr)) {
 			throw new PrismNotSupportedException("LTL formulas with time bounds not supported for CTMCs");
@@ -70,11 +70,11 @@ public class CTMCModelChecker extends ProbModelChecker
 		// Now, we construct embedded DTMC and do the plain LTL computation on that
 		mainLog.println("Building embedded DTMC...");
 		DTMC dtmcEmb = ((CTMC)model).getImplicitEmbeddedDTMC();
-		return createDTMCModelChecker().checkProbPathFormulaLTL(dtmcEmb, expr, qual, minMax, statesOfInterest);
+		return createDTMCModelChecker().checkProbPathFormulaLTL(dtmcEmb, expr, qual, minMax, context);
 	}
 
 	@Override
-	protected StateValues checkRewardCoSafeLTL(Model model, Rewards modelRewards, Expression expr, MinMax minMax, BitSet statesOfInterest) throws PrismException
+	protected StateValues checkRewardCoSafeLTL(Model model, Rewards modelRewards, Expression expr, MinMax minMax, ComputationContext context) throws PrismException
 	{
 		if (Expression.containsTemporalTimeBounds(expr)) {
 			throw new PrismNotSupportedException("LTL formulas with time bounds not supported for CTMCs");
@@ -98,11 +98,11 @@ public class CTMCModelChecker extends ProbModelChecker
 		for (int i = 0; i < n; i++) {
 			rewEmb.setStateReward(i, ((MCRewards) modelRewards).getStateReward(i) / ((CTMC)model).getExitRate(i));
 		}
-		return createDTMCModelChecker().checkRewardCoSafeLTL(dtmcEmb, rewEmb, expr, minMax, statesOfInterest);
+		return createDTMCModelChecker().checkRewardCoSafeLTL(dtmcEmb, rewEmb, expr, minMax, context);
 	}
 
 	@Override
-	protected StateValues checkExistsLTL(Model model, Expression expr, BitSet statesOfInterest) throws PrismException
+	protected StateValues checkExistsLTL(Model model, Expression expr, ComputationContext context) throws PrismException
 	{
 		if (Expression.containsTemporalTimeBounds(expr)) {
 			throw new PrismNotSupportedException("LTL formulas with time bounds not supported for CTMCs");
@@ -120,11 +120,11 @@ public class CTMCModelChecker extends ProbModelChecker
 		// Now, we construct embedded DTMC and do the plain E[ LTL ] computation on that
 		mainLog.println("Building embedded DTMC...");
 		DTMC dtmcEmb = ((CTMC)model).getImplicitEmbeddedDTMC();
-		return createDTMCModelChecker().checkExistsLTL(dtmcEmb, expr, statesOfInterest);
+		return createDTMCModelChecker().checkExistsLTL(dtmcEmb, expr, context);
 	}
 
 	@Override
-	protected StateValues checkProbBoundedUntil(Model model, ExpressionTemporal expr, MinMax minMax, BitSet statesOfInterest) throws PrismException
+	protected StateValues checkProbBoundedUntil(Model model, ExpressionTemporal expr, MinMax minMax, ComputationContext context) throws PrismException
 	{
 		double lTime, uTime; // time bounds
 		Expression exprTmp;
@@ -877,21 +877,21 @@ public class CTMCModelChecker extends ProbModelChecker
 	// compute... methods to use a DTMCModelChecker for the computations instead
 
 	@Override
-	public BitSet computeExistsNext(Model model, BitSet target, BitSet statesOfInterest) throws PrismException
+	public BitSet computeExistsNext(Model model, BitSet target, ComputationContext context) throws PrismException
 	{
 		// Construct embedded DTMC and do CTL computation on that
 		mainLog.println("Building embedded DTMC...");
 		DTMC dtmcEmb = ((CTMC)model).getImplicitEmbeddedDTMC();
-		return createDTMCModelChecker().computeExistsNext(dtmcEmb, target, statesOfInterest);
+		return createDTMCModelChecker().computeExistsNext(dtmcEmb, target, context);
 	}
 
 	@Override
-	public BitSet computeForAllNext(Model model, BitSet target, BitSet statesOfInterest) throws PrismException
+	public BitSet computeForAllNext(Model model, BitSet target, ComputationContext context) throws PrismException
 	{
 		// Construct embedded DTMC and do CTL computation on that
 		mainLog.println("Building embedded DTMC...");
 		DTMC dtmcEmb = ((CTMC)model).getImplicitEmbeddedDTMC();
-		return createDTMCModelChecker().computeForAllNext(dtmcEmb, target, statesOfInterest);
+		return createDTMCModelChecker().computeForAllNext(dtmcEmb, target, context);
 	}
 
 	@Override

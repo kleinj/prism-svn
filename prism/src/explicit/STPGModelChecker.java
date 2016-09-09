@@ -58,7 +58,7 @@ public class STPGModelChecker extends ProbModelChecker
 	// Model checking functions
 
 	@Override
-	protected StateValues checkProbPathFormulaLTL(Model model, Expression expr, boolean qual, MinMax minMax, BitSet statesOfInterest) throws PrismException
+	protected StateValues checkProbPathFormulaLTL(Model model, Expression expr, boolean qual, MinMax minMax, ComputationContext context) throws PrismException
 	{
 		throw new PrismNotSupportedException("LTL model checking not yet supported for stochastic games");
 	}

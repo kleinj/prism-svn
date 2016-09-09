@@ -59,21 +59,21 @@ public class NonProbModelChecker extends StateModelChecker
 	}
 	
 	@Override
-	public StateValues checkExpression(Model model, Expression expr, BitSet statesOfInterest) throws PrismException
+	public StateValues checkExpression(Model model, Expression expr, ComputationContext context) throws PrismException
 	{
 		StateValues res;
 
 		// E operator
 		if (expr instanceof ExpressionExists) {
-			return checkExpressionExists(model, ((ExpressionExists)expr).getExpression(), statesOfInterest);
+			return checkExpressionExists(model, ((ExpressionExists)expr).getExpression(), context);
 		}
 		// A operator
 		else if (expr instanceof ExpressionForAll) {
-			return checkExpressionForAll(model, ((ExpressionForAll)expr).getExpression(), statesOfInterest);
+			return checkExpressionForAll(model, ((ExpressionForAll)expr).getExpression(), context);
 		}
 		// Otherwise, use the superclass
 		else {
-			res = super.checkExpression(model, expr, statesOfInterest);
+			res = super.checkExpression(model, expr, context);
 		}
 
 		return res;
@@ -86,15 +86,15 @@ public class NonProbModelChecker extends StateModelChecker
 	 *
 	 * @param model the model
 	 * @param expr the expression for 'expr'
-	 * @param statesOfInterest the states of interest ({@code null} = all states)
+	 * @param context the computation context (may be {@code null} for defaults)
 	 * @return a boolean StateValues, with {@code true} for all states satisfying E[ expr ]
 	 */
-	protected StateValues checkExpressionExists(Model model, Expression expr, BitSet statesOfInterest) throws PrismException
+	protected StateValues checkExpressionExists(Model model, Expression expr, ComputationContext context) throws PrismException
 	{
 		// Check whether we have to use LTL path formula handling
 		if (getSettings().getBoolean(PrismSettings.PRISM_PATH_VIA_AUTOMATA)
 		    || !expr.isSimplePathFormula() ) {
-			return checkExistsLTL(model, expr, statesOfInterest);
+			return checkExistsLTL(model, expr, context);
 		}
 
 		// We have a simple path formula, convert to either
@@ -109,7 +109,7 @@ public class NonProbModelChecker extends StateModelChecker
 			if (((ExpressionTemporal)expr).hasBounds()) {
 				throw new PrismNotSupportedException("Model checking of bounded CTL operators is not supported");
 			}
-			return checkExistsNext(model, ((ExpressionTemporal) expr).getOperand2(), statesOfInterest);
+			return checkExistsNext(model, ((ExpressionTemporal) expr).getOperand2(), context);
 		}
 
 		// until
@@ -150,12 +150,12 @@ public class NonProbModelChecker extends StateModelChecker
 	 *
 	 * @param model the model
 	 * @param expr the expression for 'expr'
-	 * @param statesOfInterest the states of interest ({@code null} = all states)
+	 * @param context the computation context (may be {@code null} for defaults)
 	 * @return a boolean StateValues, with {@code true} for all states satisfying A[ expr ]
 	 */
-	protected StateValues checkExpressionForAll(Model model, Expression expr, BitSet statesOfInterest) throws PrismException
+	protected StateValues checkExpressionForAll(Model model, Expression expr, ComputationContext context) throws PrismException
 	{
-		StateValues result = checkExpressionExists(model, Expression.Not(expr), statesOfInterest);
+		StateValues result = checkExpressionExists(model, Expression.Not(expr), context);
 		result.complement();
 
 		return result;
@@ -165,13 +165,13 @@ public class NonProbModelChecker extends StateModelChecker
 	 * Compute the set of states satisfying E[ X expr ].
 	 * @param model the model
 	 * @param expr the expression for 'expr'
-	 * @param statesOfInterest the states of interest ({@code null} = all states)
-	 * @return a boolean StateValues, with {@code true} for all states satisfying E[ X expr ]
+     * @param context the computation context (may be {@code null} for defaults)
+     * @return a boolean StateValues, with {@code true} for all states satisfying E[ X expr ]
 	 */
-	protected StateValues checkExistsNext(Model model, Expression expr, BitSet statesOfInterest) throws PrismException
+	protected StateValues checkExistsNext(Model model, Expression expr, ComputationContext context) throws PrismException
 	{
 		BitSet target = checkExpression(model, expr, null).getBitSet();
-		BitSet result = computeExistsNext(model, target, statesOfInterest);
+		BitSet result = computeExistsNext(model, target, context);
 
 		return StateValues.createFromBitSet(result, model);
 	}
@@ -180,13 +180,14 @@ public class NonProbModelChecker extends StateModelChecker
 	 * Compute the set of states satisfying E[ X "target" ].
 	 * @param model the model
 	 * @param target the BitSet of states for target
-	 * @param statesOfInterest the states of interest ({@code null} = all states)
+     * @param context the computation context (may be {@code null} for defaults)
 	 * @return a boolean StateValues, with {@code true} for all states satisfying E[ X "target" ]
 	 */
-	public BitSet computeExistsNext(Model model, BitSet target, BitSet statesOfInterest) throws PrismException
+	public BitSet computeExistsNext(Model model, BitSet target, ComputationContext context) throws PrismException
 	{
 		BitSet result = new BitSet();
 
+		BitSet statesOfInterest = (context == null ? null : context.getStatesOfInterest());
 		for (int s : new IterableStateSet(statesOfInterest, model.getNumStates())) {
 			// for each state of interest, check whether there is a transition to the 'target'
 			if (model.someSuccessorsInSet(s, target)) {
@@ -201,14 +202,15 @@ public class NonProbModelChecker extends StateModelChecker
 	 * Compute the set of states satisfying A[ X expr ].
 	 * @param model the model
 	 * @param expr the expression for 'expr'
-	 * @param statesOfInterest the states of interest ({@code null} = all states)
+	 * @param context the computation context (may be {@code null} for defaults)
 	 * @return a boolean StateValues, with {@code true} for all states satisfying A[ X expr ]
 	 */	
-	protected StateValues checkForAllNext(Model model, Expression expr, BitSet statesOfInterest) throws PrismException
+	protected StateValues checkForAllNext(Model model, Expression expr, ComputationContext context) throws PrismException
 	{
 		BitSet target = checkExpression(model, expr, null).getBitSet();
 		BitSet result = new BitSet();
 
+		BitSet statesOfInterest = (context == null ? null : context.getStatesOfInterest());
 		for (int s : new IterableStateSet(statesOfInterest, model.getNumStates())) {
 			// for each state of interest, check whether all transitions go to 'target'
 			if (model.allSuccessorsInSet(s, target)) {
@@ -223,13 +225,14 @@ public class NonProbModelChecker extends StateModelChecker
 	 * Compute the set of states satisfying A[ X "target" ].
 	 * @param model the model
 	 * @param target the BitSet of states in target
-	 * @param statesOfInterest the states of interest ({@code null} = all states)
+	 * @param context the computation context (may be {@code null} for defaults)
 	 * @return a boolean StateValues, with {@code true} for all states satisfying A[ X "target" ]
 	 */
-	public BitSet computeForAllNext(Model model, BitSet target, BitSet statesOfInterest) throws PrismException
+	public BitSet computeForAllNext(Model model, BitSet target, ComputationContext context) throws PrismException
 	{
 		BitSet result = new BitSet();
 
+		BitSet statesOfInterest = (context == null ? null : context.getStatesOfInterest());
 		for (int s : new IterableStateSet(statesOfInterest, model.getNumStates())) {
 			// for each state of interest, check whether all transitions go to 'target'
 			if (model.allSuccessorsInSet(s, target)) {
@@ -455,10 +458,10 @@ public class NonProbModelChecker extends StateModelChecker
 	 * The LTL formula can have nested P or R operators, as well as nested CTL formulas.
 	 * @param model the model
 	 * @param expr the LTL formula
-	 * @param statesofInterest the states of interest
+	 * @param context the computation context (may be {@code null} for defaults)
 	 * @return a boolean StateValues, with {@code true} for all states satisfying E[ phi ]
 	 */
-	protected StateValues checkExistsLTL(Model model, Expression expr, BitSet statesOfInterest) throws PrismException
+	protected StateValues checkExistsLTL(Model model, Expression expr, ComputationContext context) throws PrismException
 	{
 		if (Expression.containsTemporalTimeBounds(expr)) {
 			throw new PrismNotSupportedException("Time-bounded operators not supported in LTL: " + expr);
@@ -487,6 +490,7 @@ public class NonProbModelChecker extends StateModelChecker
 		// construct the full product and just compute the SCCs.
 		mainLog.print("Constructing " + model.getModelType()+ "-NBA product as LTS...");
 		mainLog.flush();
+		BitSet statesOfInterest = (context == null ? null : context.getStatesOfInterest());
 		LTSNBAProduct product = LTSNBAProduct.doProduct(model, nba, statesOfInterest, labelBS);
 		mainLog.println(" "+product.getProductModel().infoString()+", "+product.getAcceptingStates().cardinality()+" states accepting");
 

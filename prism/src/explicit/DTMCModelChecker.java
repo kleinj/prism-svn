@@ -64,7 +64,7 @@ public class DTMCModelChecker extends ProbModelChecker
 	// Model checking functions
 
 	@Override
-	protected StateValues checkProbPathFormulaLTL(Model model, Expression expr, boolean qual, MinMax minMax, BitSet statesOfInterest) throws PrismException
+	protected StateValues checkProbPathFormulaLTL(Model model, Expression expr, boolean qual, MinMax minMax, ComputationContext context) throws PrismException
 	{
 		LTLModelChecker mcLtl;
 		StateValues probsProduct, probs;
@@ -80,6 +80,7 @@ public class DTMCModelChecker extends ProbModelChecker
 				AcceptanceType.REACH,
 				AcceptanceType.GENERIC
 		};
+		BitSet statesOfInterest = (context == null ? null : context.getStatesOfInterest());
 		product = mcLtl.constructProductMC(this, (DTMC)model, expr, statesOfInterest, allowedAcceptance);
 
 		// Output product, if required
@@ -133,7 +134,8 @@ public class DTMCModelChecker extends ProbModelChecker
 	/**
 	 * Compute rewards for a co-safe LTL reward operator.
 	 */
-	protected StateValues checkRewardCoSafeLTL(Model model, Rewards modelRewards, Expression expr, MinMax minMax, BitSet statesOfInterest) throws PrismException
+	@Override
+	protected StateValues checkRewardCoSafeLTL(Model model, Rewards modelRewards, Expression expr, MinMax minMax, ComputationContext context) throws PrismException
 	{
 		LTLModelChecker mcLtl;
 		MCRewards productRewards;
@@ -149,6 +151,7 @@ public class DTMCModelChecker extends ProbModelChecker
 				AcceptanceType.RABIN,
 				AcceptanceType.REACH
 		};
+		BitSet statesOfInterest = (context == null ? null : context.getStatesOfInterest());
 		product = mcLtl.constructProductMC(this, (DTMC)model, expr, statesOfInterest, allowedAcceptance);
 		
 		// Adapt reward info to product model

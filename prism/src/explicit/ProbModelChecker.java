@@ -464,21 +464,21 @@ public class ProbModelChecker extends NonProbModelChecker
 	// Model checking functions
 
 	@Override
-	public StateValues checkExpression(Model model, Expression expr, BitSet statesOfInterest) throws PrismException
+	public StateValues checkExpression(Model model, Expression expr, ComputationContext context) throws PrismException
 	{
 		StateValues res;
 
 		// <<>> or [[]] operator
 		if (expr instanceof ExpressionStrategy) {
-			res = checkExpressionStrategy(model, (ExpressionStrategy) expr, statesOfInterest);
+			res = checkExpressionStrategy(model, (ExpressionStrategy) expr, context);
 		}
 		// P operator
 		else if (expr instanceof ExpressionProb) {
-			res = checkExpressionProb(model, (ExpressionProb) expr, statesOfInterest);
+			res = checkExpressionProb(model, (ExpressionProb) expr, context);
 		}
 		// R operator
 		else if (expr instanceof ExpressionReward) {
-			res = checkExpressionReward(model, (ExpressionReward) expr, statesOfInterest);
+			res = checkExpressionReward(model, (ExpressionReward) expr, context);
 		}
 		// S operator
 		else if (expr instanceof ExpressionSS) {
@@ -486,17 +486,16 @@ public class ProbModelChecker extends NonProbModelChecker
 		}
 		// Otherwise, use the superclass
 		else {
-			res = super.checkExpression(model, expr, statesOfInterest);
+			res = super.checkExpression(model, expr, context);
 		}
 
 		return res;
 	}
 
 	/**
-	 * Model check a <<>> or [[]] operator expression and return the values for the statesOfInterest.
-	 * * @param statesOfInterest the states of interest, see checkExpression()
+	 * Model check a <<>> or [[]] operator expression and return the values.
 	 */
-	protected StateValues checkExpressionStrategy(Model model, ExpressionStrategy expr, BitSet statesOfInterest) throws PrismException
+	protected StateValues checkExpressionStrategy(Model model, ExpressionStrategy expr, ComputationContext context) throws PrismException
 	{
 		// Only support <<>>/[[]] for MDPs right now
 		if (!(this instanceof MDPModelChecker))
@@ -525,11 +524,11 @@ public class ProbModelChecker extends NonProbModelChecker
 		// Pass onto relevant method:
 		// P operator
 		if (exprSub instanceof ExpressionProb) {
-			return checkExpressionProb(model, (ExpressionProb) exprSub, forAll, coalition, statesOfInterest);
+			return checkExpressionProb(model, (ExpressionProb) exprSub, forAll, coalition, context);
 		}
 		// R operator
 		else if (exprSub instanceof ExpressionReward) {
-			return checkExpressionReward(model, (ExpressionReward) exprSub, forAll, coalition, statesOfInterest);
+			return checkExpressionReward(model, (ExpressionReward) exprSub, forAll, coalition, context);
 		}
 		// Anything else is an error 
 		else {
@@ -538,32 +537,32 @@ public class ProbModelChecker extends NonProbModelChecker
 	}
 
 	/**
-	 * Model check a P operator expression and return the values for the statesOfInterest.
- 	 * @param statesOfInterest the states of interest, see checkExpression()
+	 * Model check a P operator expression and return the values.
+	 * @param context the computation context (may be {@code null} for defaults)
 	 */
-	protected StateValues checkExpressionProb(Model model, ExpressionProb expr, BitSet statesOfInterest) throws PrismException
+	protected StateValues checkExpressionProb(Model model, ExpressionProb expr, ComputationContext context) throws PrismException
 	{
 		// Use the default semantics for a standalone P operator
 		// (i.e. quantification over all strategies, and no game-coalition info)
-		return checkExpressionProb(model, expr, true, null, statesOfInterest);
+		return checkExpressionProb(model, expr, true, null, context);
 	}
 	
 	/**
-	 * Model check a P operator expression and return the values for the states of interest.
+	 * Model check a P operator expression and return the values.
 	 * @param model The model
 	 * @param expr The P operator expression
 	 * @param forAll Are we checking "for all strategies" (true) or "there exists a strategy" (false)? [irrelevant for numerical (=?) queries] 
 	 * @param coalition If relevant, info about which set of players this P operator refers to (null if irrelevant)
-	 * @param statesOfInterest the states of interest, see checkExpression()
+	 * @param context the computation context (may be {@code null} for defaults)
 	 */
-	protected StateValues checkExpressionProb(Model model, ExpressionProb expr, boolean forAll, Coalition coalition, BitSet statesOfInterest) throws PrismException
+	protected StateValues checkExpressionProb(Model model, ExpressionProb expr, boolean forAll, Coalition coalition, ComputationContext context) throws PrismException
 	{
 		// Get info from P operator
 		OpRelOpBound opInfo = expr.getRelopBoundInfo(constantValues);
 		MinMax minMax = opInfo.getMinMax(model.getModelType(), forAll);
 
 		// Compute probabilities
-		StateValues probs = checkProbPathFormula(model, expr.getExpression(), minMax, statesOfInterest);
+		StateValues probs = checkProbPathFormula(model, expr.getExpression(), minMax, context);
 
 		// Print out probabilities
 		if (getVerbosity() > 5) {
@@ -585,9 +584,9 @@ public class ProbModelChecker extends NonProbModelChecker
 
 	/**
 	 * Compute probabilities for the contents of a P operator.
-	 * @param statesOfInterest the states of interest, see checkExpression()
+	 * @param context the computation context (may be {@code null} for defaults)
 	 */
-	protected StateValues checkProbPathFormula(Model model, Expression expr, MinMax minMax, BitSet statesOfInterest) throws PrismException
+	protected StateValues checkProbPathFormula(Model model, Expression expr, MinMax minMax, ComputationContext context) throws PrismException
 	{
 		// Test whether this is a simple path formula (i.e. PCTL)
 		// and whether we want to use the corresponding algorithms
@@ -602,16 +601,16 @@ public class ProbModelChecker extends NonProbModelChecker
 		}
 
 		if (useSimplePathAlgo) {
-			return checkProbPathFormulaSimple(model, expr, minMax, statesOfInterest);
+			return checkProbPathFormulaSimple(model, expr, minMax, context);
 		} else {
-			return checkProbPathFormulaLTL(model, expr, false, minMax, statesOfInterest);
+			return checkProbPathFormulaLTL(model, expr, false, minMax, context);
 		}
 	}
 
 	/**
 	 * Compute probabilities for a simple, non-LTL path operator.
 	 */
-	protected StateValues checkProbPathFormulaSimple(Model model, Expression expr, MinMax minMax, BitSet statesOfInterest) throws PrismException
+	protected StateValues checkProbPathFormulaSimple(Model model, Expression expr, MinMax minMax, ComputationContext context) throws PrismException
 	{
 		boolean negated = false;
 		StateValues probs = null;
@@ -631,14 +630,14 @@ public class ProbModelChecker extends NonProbModelChecker
 
 			// Next
 			if (exprTemp.getOperator() == ExpressionTemporal.P_X) {
-				probs = checkProbNext(model, exprTemp, minMax, statesOfInterest);
+				probs = checkProbNext(model, exprTemp, minMax, context);
 			}
 			// Until
 			else if (exprTemp.getOperator() == ExpressionTemporal.P_U) {
 				if (exprTemp.hasBounds()) {
-					probs = checkProbBoundedUntil(model, exprTemp, minMax, statesOfInterest);
+					probs = checkProbBoundedUntil(model, exprTemp, minMax, context);
 				} else {
-					probs = checkProbUntil(model, exprTemp, minMax, statesOfInterest);
+					probs = checkProbUntil(model, exprTemp, minMax, context);
 				}
 			}
 		}
@@ -658,7 +657,7 @@ public class ProbModelChecker extends NonProbModelChecker
 	/**
 	 * Compute probabilities for a next operator.
 	 */
-	protected StateValues checkProbNext(Model model, ExpressionTemporal expr, MinMax minMax, BitSet statesOfInterest) throws PrismException
+	protected StateValues checkProbNext(Model model, ExpressionTemporal expr, MinMax minMax, ComputationContext context) throws PrismException
 	{
 		// Model check the operand for all states
 		BitSet target = checkExpression(model, expr.getOperand2(), null).getBitSet();
@@ -688,7 +687,7 @@ public class ProbModelChecker extends NonProbModelChecker
 	/**
 	 * Compute probabilities for a bounded until operator.
 	 */
-	protected StateValues checkProbBoundedUntil(Model model, ExpressionTemporal expr, MinMax minMax, BitSet statesOfInterest) throws PrismException
+	protected StateValues checkProbBoundedUntil(Model model, ExpressionTemporal expr, MinMax minMax, ComputationContext context) throws PrismException
 	{
 		// This method just handles discrete time
 		// Continuous-time model checkers will override this method
@@ -792,7 +791,7 @@ public class ProbModelChecker extends NonProbModelChecker
 	/**
 	 * Compute probabilities for an (unbounded) until operator.
 	 */
-	protected StateValues checkProbUntil(Model model, ExpressionTemporal expr, MinMax minMax, BitSet statesOfInterest) throws PrismException
+	protected StateValues checkProbUntil(Model model, ExpressionTemporal expr, MinMax minMax, ComputationContext context) throws PrismException
 	{
 		// Model check operands for all states
 		BitSet remain = checkExpression(model, expr.getOperand1(), null).getBitSet();
@@ -823,26 +822,26 @@ public class ProbModelChecker extends NonProbModelChecker
 	/**
 	 * Compute probabilities for an LTL path formula
 	 */
-	protected StateValues checkProbPathFormulaLTL(Model model, Expression expr, boolean qual, MinMax minMax, BitSet statesOfInterest) throws PrismException
+	protected StateValues checkProbPathFormulaLTL(Model model, Expression expr, boolean qual, MinMax minMax, ComputationContext context) throws PrismException
 	{
 		// To be overridden by subclasses
 		throw new PrismNotSupportedException("Computation not implemented yet");
 	}
 
 	/**
-	 * Model check an R operator expression and return the values for all states.
+	 * Model check an R operator expression and return the values.
 	 */
-	protected StateValues checkExpressionReward(Model model, ExpressionReward expr, BitSet statesOfInterest) throws PrismException
+	protected StateValues checkExpressionReward(Model model, ExpressionReward expr, ComputationContext context) throws PrismException
 	{
 		// Use the default semantics for a standalone R operator
 		// (i.e. quantification over all strategies, and no game-coalition info)
-		return checkExpressionReward(model, expr, true, null, statesOfInterest);
+		return checkExpressionReward(model, expr, true, null, context);
 	}
 	
 	/**
-	 * Model check an R operator expression and return the values for all states.
+	 * Model check an R operator expression and return the values.
 	 */
-	protected StateValues checkExpressionReward(Model model, ExpressionReward expr, boolean forAll, Coalition coalition, BitSet statesOfInterest) throws PrismException
+	protected StateValues checkExpressionReward(Model model, ExpressionReward expr, boolean forAll, Coalition coalition, ComputationContext context) throws PrismException
 	{
 		// Get info from R operator
 		OpRelOpBound opInfo = expr.getRelopBoundInfo(constantValues);
@@ -854,7 +853,7 @@ public class ProbModelChecker extends NonProbModelChecker
 		Rewards rewards = constructRewards(model, r);
 
 		// Compute rewards
-		StateValues rews = checkRewardFormula(model, rewards, expr.getExpression(), minMax, statesOfInterest);
+		StateValues rews = checkRewardFormula(model, rewards, expr.getExpression(), minMax, context);
 
 		// Print out rewards
 		if (getVerbosity() > 5) {
@@ -946,7 +945,7 @@ public class ProbModelChecker extends NonProbModelChecker
 	/**
 	 * Compute rewards for the contents of an R operator.
 	 */
-	protected StateValues checkRewardFormula(Model model, Rewards modelRewards, Expression expr, MinMax minMax, BitSet statesOfInterest) throws PrismException
+	protected StateValues checkRewardFormula(Model model, Rewards modelRewards, Expression expr, MinMax minMax, ComputationContext context) throws PrismException
 	{
 		StateValues rewards = null;
 
@@ -967,7 +966,7 @@ public class ProbModelChecker extends NonProbModelChecker
 				throw new PrismNotSupportedException("Explicit engine does not yet handle the " + exprTemp.getOperatorSymbol() + " reward operator");
 			}
 		} else if (expr.getType() instanceof TypePathBool || expr.getType() instanceof TypeBool) {
-			rewards = checkRewardPathFormula(model, modelRewards, expr, minMax, statesOfInterest);
+			rewards = checkRewardPathFormula(model, modelRewards, expr, minMax, context);
 		}
 
 		if (rewards == null)
@@ -1083,13 +1082,13 @@ public class ProbModelChecker extends NonProbModelChecker
 	/**
 	 * Compute rewards for a path formula in a reward operator.
 	 */
-	protected StateValues checkRewardPathFormula(Model model, Rewards modelRewards, Expression expr, MinMax minMax, BitSet statesOfInterest) throws PrismException
+	protected StateValues checkRewardPathFormula(Model model, Rewards modelRewards, Expression expr, MinMax minMax, ComputationContext context) throws PrismException
 	{
 		if (Expression.isReach(expr)) {
-			return checkRewardReach(model, modelRewards, (ExpressionTemporal) expr, minMax, statesOfInterest);
+			return checkRewardReach(model, modelRewards, (ExpressionTemporal) expr, minMax, context);
 		}
 		else if (Expression.isCoSafeLTLSyntactic(expr, true)) {
-			return checkRewardCoSafeLTL(model, modelRewards, expr, minMax, statesOfInterest);
+			return checkRewardCoSafeLTL(model, modelRewards, expr, minMax, context);
 		}
 		throw new PrismException("R operator contains a path formula that is not syntactically co-safe: " + expr);
 	}
@@ -1097,7 +1096,7 @@ public class ProbModelChecker extends NonProbModelChecker
 	/**
 	 * Compute rewards for a reachability reward operator.
 	 */
-	protected StateValues checkRewardReach(Model model, Rewards modelRewards, ExpressionTemporal expr, MinMax minMax, BitSet statesOfInterest) throws PrismException
+	protected StateValues checkRewardReach(Model model, Rewards modelRewards, ExpressionTemporal expr, MinMax minMax, ComputationContext context) throws PrismException
 	{
 		// No time bounds allowed
 		if (expr.hasBounds()) {
@@ -1133,7 +1132,7 @@ public class ProbModelChecker extends NonProbModelChecker
 	/**
 	 * Compute rewards for a co-safe LTL reward operator.
 	 */
-	protected StateValues checkRewardCoSafeLTL(Model model, Rewards modelRewards, Expression expr, MinMax minMax, BitSet statesOfInterest) throws PrismException
+	protected StateValues checkRewardCoSafeLTL(Model model, Rewards modelRewards, Expression expr, MinMax minMax, ComputationContext context) throws PrismException
 	{
 		// To be overridden by subclasses
 		throw new PrismException("Computation not implemented yet");
