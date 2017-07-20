@@ -86,6 +86,15 @@ public class PrismSettings implements Observer
 	public static final	String PRISM_LIN_EQ_METHOD_PARAM			= "prism.linEqMethodParam";//"prism.overRelaxation";
 	public static final String PRISM_TOPOLOGICAL_VI					= "prism.topologicalVI";
 	public static final	String PRISM_PMAX_QUOTIENT					= "prism.pmaxQuotient";
+	public static final	String PRISM_INTERVAL_ITER					= "prism.intervalIter";
+	public static final	String PRISM_INTERVAL_ITER_MONOTONIC_BELOW	= "prism.intervalIterEnsureMonotonicBelow";
+	public static final	String PRISM_INTERVAL_ITER_MONOTONIC_ABOVE	= "prism.intervalIterEnsureMonotonicAbove";
+	public static final	String PRISM_INTERVAL_ITER_CHECK_MONOTONIC	= "prism.intervalIterCheckMonotonic";
+	public static final	String PRISM_INTERVAL_ITER_SELECT_MIDPOINT	= "prism.intervalIterSelectMidpoint";
+	public static final	String PRISM_INTERVAL_ITER_BOUND_VARIANT	= "prism.intervalIterBoundVariant";
+	public static final	String PRISM_INTERVAL_ITER_BOUND_VERBOSE	= "prism.intervalIterBoundComputationVerbose";
+	public static final	String PRISM_INTERVAL_ITER_BOUND_MANUAL_LOWER	= "prism.intervalIterBoundManualLower";
+	public static final	String PRISM_INTERVAL_ITER_BOUND_MANUAL_UPPER	= "prism.intervalIterBoundManualUpper";
 	public static final	String PRISM_MDP_SOLN_METHOD				= "prism.mdpSolnMethod";
 	public static final	String PRISM_MDP_MULTI_SOLN_METHOD			= "prism.mdpMultiSolnMethod";
 	public static final	String PRISM_TERM_CRIT						= "prism.termCrit";//"prism.termination";
@@ -247,6 +256,24 @@ public class PrismSettings implements Observer
 																			"Use topological value iteration in iterative numerical methods."},
 			{ BOOLEAN_TYPE,		PRISM_PMAX_QUOTIENT,				"For Pmax computations, compute in the MEC quotient",				"4.3.1",		false,																		"",
 																				"For Pmax computations, compute in the MEC quotient."},
+			{ BOOLEAN_TYPE,		PRISM_INTERVAL_ITER,				"Use interval iterations",				"4.3.1",		false,																		"",
+																				"Use interval iteration (from above and below) in iterative numerical methods."},
+			{ BOOLEAN_TYPE,		PRISM_INTERVAL_ITER_MONOTONIC_BELOW,	"Enforce that the interval iteration from below is monotonic",				"4.3.1",		false,																		"",
+																				"Enforce that the interval iteration from below is monotonic."},
+			{ BOOLEAN_TYPE,		PRISM_INTERVAL_ITER_MONOTONIC_ABOVE,	"Enforce that the interval iteration from above is monotonic",				"4.3.1",		true,																		"",
+																				"Enforce that the interval iteration from above is monotonic."},
+			{ BOOLEAN_TYPE,		PRISM_INTERVAL_ITER_CHECK_MONOTONIC,	"Check that the interval iteration is monotonic (for testing)",				"4.3.1",		false,																		"",
+																				"Check that the interval iteration is monotonic (for testing)."},
+			{ BOOLEAN_TYPE,		PRISM_INTERVAL_ITER_SELECT_MIDPOINT,	"For interval iteration, select midpoint",				"4.3.1",		true,																		"",
+																				"For interval iteration, select midpoint between upper and lower solution as the result."},
+			{ CHOICE_TYPE,		PRISM_INTERVAL_ITER_BOUND_VARIANT,		"Upper bound heuristic for reward interval iteration",				"4.3.1",		"Default",					"Default,Variant 1 (Fine),Variant 1 (Coarse),Variant 2,DS-MPI",
+																				"Heuristic for computing an upper bound on the expected maximal reward for the iteration from above."},
+			{ BOOLEAN_TYPE,		PRISM_INTERVAL_ITER_BOUND_VERBOSE,		"Verbose output for upper bound heuristic for reward interval iteration",				"4.3.1",		false,					"",
+																				"Verbose output for upper bound heuristic for reward interval iteration."},
+			{ DOUBLE_TYPE,		PRISM_INTERVAL_ITER_BOUND_MANUAL_LOWER,		"Manually specify lower bound for interval iteration",				"4.3.1",		Double.NaN,					"",
+																				"Manually specify lower bound for interval iteration."},
+			{ DOUBLE_TYPE,		PRISM_INTERVAL_ITER_BOUND_MANUAL_UPPER,		"Manually specify upper bound for interval iteration",				"4.3.1",		Double.NaN,					"",
+																				"Manually specify upper bound for interval iteration."},
 			{ CHOICE_TYPE,		PRISM_MDP_SOLN_METHOD,					"MDP solution method",				"4.0",			"Value iteration",																"Value iteration,Gauss-Seidel,Policy iteration,Modified policy iteration,Linear programming",
 																			"Which method to use when solving Markov decision processes." },
 			{ CHOICE_TYPE,		PRISM_MDP_MULTI_SOLN_METHOD,			"MDP multi-objective solution method",				"4.0.3",			"Value iteration",											"Value iteration,Gauss-Seidel,Linear programming",
@@ -993,6 +1020,75 @@ public class PrismSettings implements Observer
 			set(PRISM_MDP_MULTI_SOLN_METHOD, "Linear programming");
 		}
 
+		// Interval iterations
+		else if (sw.equals("intervaliter")) {
+			set(PRISM_INTERVAL_ITER, true);
+		}
+		else if (sw.equals("intervaliterbelownonmonotonic")) {
+			set(PRISM_INTERVAL_ITER_MONOTONIC_BELOW, false);
+		}
+		else if (sw.equals("intervaliterabovenonmonotonic")) {
+			set(PRISM_INTERVAL_ITER_MONOTONIC_ABOVE, false);
+		}
+		else if (sw.equals("intervalitercheckmonotonic")) {
+			set(PRISM_INTERVAL_ITER_CHECK_MONOTONIC, true);
+		}
+		else if (sw.equals("intervaliternotmidpoint")) {
+			set(PRISM_INTERVAL_ITER_SELECT_MIDPOINT, false);
+		}
+		else if (sw.equals("intervaliterboundmethod")) {
+			if (i < args.length - 1) {
+				switch (args[++i]) {
+				case "default":
+					set(PRISM_INTERVAL_ITER_BOUND_VARIANT, "Default");
+					break;
+				case "variant-1-fine":
+					set(PRISM_INTERVAL_ITER_BOUND_VARIANT, "Variant 1 (Fine)");
+					break;
+				case "variant-1-coarse":
+					set(PRISM_INTERVAL_ITER_BOUND_VARIANT, "Variant 1 (Coarse)");
+					break;
+				case "variant-2":
+					set(PRISM_INTERVAL_ITER_BOUND_VARIANT, "Variant 2");
+					break;
+				case "dsmpi":
+					set(PRISM_INTERVAL_ITER_BOUND_VARIANT, "DS-MPI");
+					break;
+				default:
+					throw new PrismException("Invalid value for -" + sw + " switch");
+				}
+			} else {
+				throw new PrismException("No value specified for -" + sw + " switch");
+			}
+		}
+		else if (sw.equals("intervaliterboundverbose")) {
+			set(PRISM_INTERVAL_ITER_BOUND_VERBOSE, true);
+		}
+		else if (sw.equals("intervaliterboundlower")) {
+			if (i < args.length - 1) {
+				try {
+					double value = Double.parseDouble(args[++i]);
+					set(PRISM_INTERVAL_ITER_BOUND_MANUAL_LOWER, value);
+				} catch (NumberFormatException e) {
+					throw new PrismException("Invalid value for -" + sw + " switch");
+				}
+			} else {
+				throw new PrismException("No value specified for -" + sw + " switch");
+			}
+		}
+		else if (sw.equals("intervaliterboundupper")) {
+			if (i < args.length - 1) {
+				try {
+					double value = Double.parseDouble(args[++i]);
+					set(PRISM_INTERVAL_ITER_BOUND_MANUAL_UPPER, value);
+				} catch (NumberFormatException e) {
+					throw new PrismException("Invalid value for -" + sw + " switch");
+				}
+			} else {
+				throw new PrismException("No value specified for -" + sw + " switch");
+			}
+		}
+
 		// Pmax quotient
 		else if (sw.equals("pmaxquotient")) {
 			set(PRISM_PMAX_QUOTIENT, true);
@@ -1672,6 +1768,16 @@ public class PrismSettings implements Observer
 		mainLog.println("-epsilon <x> (or -e <x>) ....... Set value of epsilon (for convergence check) [default: 1e-6]");
 		mainLog.println("-maxiters <n> .................. Set max number of iterations [default: 10000]");
 		mainLog.println("-topological ................... Perform topological iterations (only explicit engine");
+		mainLog.println("-intervaliter .................. Perform interval iteration");
+		mainLog.println("-intervaliterboundmethod <x> ... Upper bound method for rewards (-help intervaliterboundmethod for values)");
+		mainLog.println("-intervaliterboundverbose ...... Verbose output during upper bound computations");
+		mainLog.println("-intervaliterboundlower <x> .... Use value as the lower bound for reward computations");
+		mainLog.println("-intervaliterboundupper <x> .... Use value as the upper bound for reward computations");
+		mainLog.println("-intervaliterbelownonmonotonic . Don't ensure monotonicity for the iteration from below during interval iteration");
+		mainLog.println("-intervaliterabovenonmonotonic . Don't ensure monotonicity for the iteration from above during interval iteration");
+		mainLog.println("-intervalitercheckmonotonic .... Check that the iterations during interval iteration are monotonic (for testing)");
+		mainLog.println("-intervaliternotmidpoint ....... Use the lower iterations' result instead of the midpoint between upper and lower iteration");
+
 		mainLog.println();
 		mainLog.println("MODEL CHECKING OPTIONS:");
 		mainLog.println("-nopre ......................... Skip precomputation algorithms (where optional)");
@@ -1754,6 +1860,12 @@ public class PrismSettings implements Observer
 			QuantAbstractRefine.printOptions(mainLog);
 			return true;
 		}
+		else if (sw.equals("intervaliterboundmethod")) {
+			mainLog.println("Switch: -intervaliterboundmethod <x>\n");
+			mainLog.println("<x> is one of default, variant-1-coarse, variant-1-fine, variant-2, dsmpi");
+			return true;
+		}
+
 		return false;
 	}
 	
