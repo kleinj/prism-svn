@@ -33,6 +33,7 @@ import common.IntSet;
 import common.PeriodicTimer;
 import explicit.rewards.MCRewards;
 import explicit.rewards.MDPRewards;
+import prism.OptionsIntervalIteration;
 import prism.PrismException;
 import prism.PrismSettings;
 import prism.PrismUtils;
@@ -570,7 +571,7 @@ public abstract class IterationMethod {
 			mc.getLog().print(mvCount + " MV-multiplications");
 			mc.getLog().println(" and " + timer / 1000.0 + " seconds.");
 
-			if (done && mc.getSettings().getBoolean(PrismSettings.PRISM_INTERVAL_ITER_SELECT_MIDPOINT)) {
+			if (done && OptionsIntervalIteration.from(mc.getSettings()).isSelectMidpointForResult()) {
 				PrismUtils.selectMidpoint(below.getSolnVector(), above.getSolnVector());
 
 				if (iterationsExport != null) {
@@ -716,7 +717,7 @@ public abstract class IterationMethod {
 			mc.getLog().print(mvCount + " MV-multiplications");
 			mc.getLog().println(" and " + timer / 1000.0 + " seconds.");
 
-			if (done && mc.getSettings().getBoolean(PrismSettings.PRISM_INTERVAL_ITER_SELECT_MIDPOINT)) {
+			if (done && OptionsIntervalIteration.from(mc.getSettings()).isSelectMidpointForResult()) {
 				PrismUtils.selectMidpoint(below.getSolnVector(), above.getSolnVector());
 
 				if (iterationsExport != null) {
