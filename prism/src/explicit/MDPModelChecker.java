@@ -2404,6 +2404,14 @@ public class MDPModelChecker extends ProbModelChecker
 			}
 		}
 
+		double lowerBound;
+		if (iiOptions.hasManualLowerBound()) {
+			lowerBound = iiOptions.getManualLowerBound();
+			getLog().printWarning("Lower bound for interval iteration manually set to " + lowerBound);
+		} else {
+			lowerBound = 0.0;
+		}
+
 		if (min) {
 			if (!isContracting(mdp, unknown, target)) {
 				throw new PrismNotSupportedException("Interval iteration for Rmin and non-contracting MDP currently not supported");
@@ -2427,13 +2435,13 @@ public class MDPModelChecker extends ProbModelChecker
 		initAbove = new double[n];
 
 		// Initialise solution vector from below. Use (where available) the following in order of preference:
-		// (1) exact answer, if already known; (2) 0.0/infinity if in target/inf; (3) 0.0
+		// (1) exact answer, if already known; (2) 0.0/infinity if in target/inf; (3) lowerBound
 		if (init != null && known != null) {
 			for (i = 0; i < n; i++)
-				initBelow[i] = known.get(i) ? init[i] : target.get(i) ? 0.0 : inf.get(i) ? Double.POSITIVE_INFINITY : 0.0;
+				initBelow[i] = known.get(i) ? init[i] : target.get(i) ? 0.0 : inf.get(i) ? Double.POSITIVE_INFINITY : lowerBound;
 		} else {
 			for (i = 0; i < n; i++)
-				initBelow[i] = target.get(i) ? 0.0 : inf.get(i) ? Double.POSITIVE_INFINITY : 0.0;
+				initBelow[i] = target.get(i) ? 0.0 : inf.get(i) ? Double.POSITIVE_INFINITY : lowerBound;
 		}
 
 		// Initialise solution vector from above. Use (where available) the following in order of preference:
