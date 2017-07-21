@@ -40,6 +40,7 @@ import parser.VarList;
 import parser.ast.Declaration;
 import parser.ast.DeclarationIntUnbounded;
 import parser.ast.Expression;
+import prism.OptionsIntervalIteration;
 import prism.Prism;
 import prism.PrismComponent;
 import prism.PrismException;
@@ -1168,9 +1169,11 @@ public class DTMCModelChecker extends ProbModelChecker
 
 		IntSet unknownStates = IntSet.asIntSet(unknown);
 
-		boolean enforceMonotonicFromBelow = getSettings().getBoolean(PrismSettings.PRISM_INTERVAL_ITER_MONOTONIC_BELOW);
-		boolean enforceMonotonicFromAbove = getSettings().getBoolean(PrismSettings.PRISM_INTERVAL_ITER_MONOTONIC_ABOVE);
-		boolean checkMonotonic = getSettings().getBoolean(PrismSettings.PRISM_INTERVAL_ITER_CHECK_MONOTONIC);
+		OptionsIntervalIteration iiOptions = OptionsIntervalIteration.from(this);
+
+		final boolean enforceMonotonicFromBelow = iiOptions.isEnforceMonotonicityFromBelow();
+		final boolean enforceMonotonicFromAbove = iiOptions.isEnforceMonotonicityFromAbove();
+		final boolean checkMonotonic = iiOptions.isCheckMonotonicity();
 
 		if (!enforceMonotonicFromAbove) {
 			getLog().println("Note: Interval iteration is configured to not enforce monotonicity from above.");
@@ -1333,23 +1336,25 @@ public class DTMCModelChecker extends ProbModelChecker
 		trapStates.or(inf);
 		DTMCAlteredDistributions cleanedDTMC = DTMCAlteredDistributions.addSelfLoops(dtmc, trapStates);
 
-		double upperBound;
+		OptionsIntervalIteration iiOptions = OptionsIntervalIteration.from(this);
+
+		double upperBound = 0.0;
 		String method = null;
-		switch (getSettings().getString(PrismSettings.PRISM_INTERVAL_ITER_BOUND_VARIANT)) {
-		case "Variant 1 (Coarse)":
+		switch (iiOptions.getBoundMethod()) {
+		case VARIANT_1_COARSE:
 			upperBound = computeReachRewardsUpperBoundVariant1Coarse(cleanedDTMC, mcRewards, target, unknown, inf);
 			method = "variant 1, coarse";
 			break;
-		case "Variant 1 (Fine)":
+		case VARIANT_1_FINE:
 			upperBound = computeReachRewardsUpperBoundVariant1Fine(cleanedDTMC, mcRewards, target, unknown, inf);
 			method = "variant 1, fine";
 			break;
-		case "Variant 2":
+		case VARIANT_2:
 			upperBound = computeReachRewardsUpperBoundVariant2(cleanedDTMC, mcRewards, target, unknown, inf);
 			method = "variant 2";
 			break;
-		case "Default":
-		case "DS-MPI":
+		case DEFAULT:
+		case DSMPI:
 		{
 			MDP mdp = new MDPFromDTMC(cleanedDTMC);
 			MDPRewards mdpRewards = new MDPRewards() {
@@ -1382,8 +1387,10 @@ public class DTMCModelChecker extends ProbModelChecker
 			method = "Dijkstra Sweep MPI";
 			break;
 		}
-		default:
-			throw new PrismNotSupportedException("Unsupported upper bound heuristic: " + getSettings().getString(PrismSettings.PRISM_INTERVAL_ITER_BOUND_VARIANT));
+		}
+
+		if (method == null) {
+			throw new PrismException("Unknown upper bound heuristic");
 		}
 
 		mainLog.println("Upper bound for expectation (" + method + "): " + upperBound);
@@ -1480,7 +1487,7 @@ public class DTMCModelChecker extends ProbModelChecker
 
 		timer.stop();
 
-		if (getSettings().getBoolean(PrismSettings.PRISM_INTERVAL_ITER_BOUND_VERBOSE)) {
+		if (OptionsIntervalIteration.from(this).isBoundComputationVerbose()) {
 			mainLog.println("Upper bound for max expectation computation (variant 1, coarse):");
 			mainLog.println("p = " + p);
 			mainLog.println("q = " + q);
@@ -1585,7 +1592,7 @@ public class DTMCModelChecker extends ProbModelChecker
 
 		timer.stop();
 
-		if (getSettings().getBoolean(PrismSettings.PRISM_INTERVAL_ITER_BOUND_VERBOSE)) {
+		if (OptionsIntervalIteration.from(this).isBoundComputationVerbose()) {
 			mainLog.println("Upper bound for max expectation computation (variant 1, fine):");
 			mainLog.println("pt = " + Arrays.toString(pt));
 			mainLog.println("qt = " + Arrays.toString(qt));
@@ -1674,7 +1681,7 @@ public class DTMCModelChecker extends ProbModelChecker
 
 		timer.stop();
 
-		if (getSettings().getBoolean(PrismSettings.PRISM_INTERVAL_ITER_BOUND_VERBOSE)) {
+		if (OptionsIntervalIteration.from(this).isBoundComputationVerbose()) {
 			mainLog.println("Upper bound for max expectation computation (variant 2):");
 			mainLog.println("d_t = " + Arrays.toString(dt));
 			mainLog.println("ζ* = " + Arrays.toString(boundsOnExpectedVisits));
@@ -2021,15 +2028,19 @@ public class DTMCModelChecker extends ProbModelChecker
 		if (known != null)
 			unknown.andNot(known);
 
-		double upperBound = getSettings().getDouble(PrismSettings.PRISM_INTERVAL_ITER_BOUND_MANUAL_UPPER);
-		if (!Double.isNaN(upperBound)) {
+		OptionsIntervalIteration iiOptions = OptionsIntervalIteration.from(this);
+
+		double upperBound;
+		if (iiOptions.hasManualUpperBound()) {
+			upperBound = iiOptions.getManualUpperBound();
 			getLog().printWarning("Upper bound for interval iteration manually set to " + upperBound);
 		} else {
 			upperBound = computeReachRewardsUpperBound(dtmc, mcRewards, target, unknown, inf);
 		}
 
-		double lowerBound = getSettings().getDouble(PrismSettings.PRISM_INTERVAL_ITER_BOUND_MANUAL_LOWER);
-		if (!Double.isNaN(lowerBound)) {
+		double lowerBound;
+		if (iiOptions.hasManualLowerBound()) {
+			lowerBound = iiOptions.getManualLowerBound();
 			getLog().printWarning("Lower bound for interval iteration manually set to " + lowerBound);
 		} else {
 			lowerBound = 0.0;
@@ -2077,9 +2088,9 @@ public class DTMCModelChecker extends ProbModelChecker
 
 		IntSet unknownStates = IntSet.asIntSet(unknown);
 
-		boolean enforceMonotonicFromBelow = getSettings().getBoolean(PrismSettings.PRISM_INTERVAL_ITER_MONOTONIC_BELOW);
-		boolean enforceMonotonicFromAbove = getSettings().getBoolean(PrismSettings.PRISM_INTERVAL_ITER_MONOTONIC_ABOVE);
-		boolean checkMonotonic = getSettings().getBoolean(PrismSettings.PRISM_INTERVAL_ITER_CHECK_MONOTONIC);
+		final boolean enforceMonotonicFromBelow = iiOptions.isEnforceMonotonicityFromBelow();
+		final boolean enforceMonotonicFromAbove = iiOptions.isEnforceMonotonicityFromAbove();
+		final boolean checkMonotonic = iiOptions.isCheckMonotonicity();
 
 		if (!enforceMonotonicFromAbove) {
 			getLog().println("Note: Interval iteration is configured to not enforce monotonicity from above.");
