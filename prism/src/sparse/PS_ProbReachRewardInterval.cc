@@ -127,8 +127,8 @@ jint flags
 	if (!helper.flag_ensure_monotonic_from_above()) {
 		PS_PrintToMainLog(env, "Note: Interval iteration is configured to not enforce monotonicity from above.\n");
 	}
-	if (helper.flag_ensure_monotonic_from_below()) {
-		PS_PrintToMainLog(env, "Note: Interval iteration is configured to enforce monotonicity from below.\n");
+	if (!helper.flag_ensure_monotonic_from_below()) {
+		PS_PrintToMainLog(env, "Note: Interval iteration is configured to not enforce monotonicity from below.\n");
 	}
 
 	// call iterative method
