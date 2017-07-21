@@ -2466,16 +2466,20 @@ public class NondetModelChecker extends NonProbModelChecker
 		else {
 
 			if (doIntervalIteration) {
-				double upperBound = getSettings().getDouble(PrismSettings.PRISM_INTERVAL_ITER_BOUND_MANUAL_UPPER);
-				if (!Double.isNaN(upperBound)) {
+				OptionsIntervalIteration iiOptions = OptionsIntervalIteration.from(this);
+
+				double upperBound;
+				if (iiOptions.hasManualUpperBound()) {
+					upperBound = iiOptions.getManualUpperBound();
 					getLog().printWarning("Upper bound for interval iteration manually set to " + upperBound);
 				} else {
 					upperBound = ProbModelChecker.computeReachRewardsUpperBound(this, model, tr, sr, trr, b, maybe);
 				}
 				upper = JDD.ITE(maybe.copy(), JDD.Constant(upperBound), JDD.Constant(0));
 
-				double lowerBound = getSettings().getDouble(PrismSettings.PRISM_INTERVAL_ITER_BOUND_MANUAL_LOWER);
-				if (!Double.isNaN(lowerBound)) {
+				double lowerBound;
+				if (iiOptions.hasManualLowerBound()) {
+					lowerBound = iiOptions.getManualLowerBound();
 					getLog().printWarning("Lower bound for interval iteration manually set to " + lowerBound);
 				} else {
 					lowerBound = 0.0;

@@ -1864,26 +1864,28 @@ public class ProbModelChecker extends NonProbModelChecker
 	 */
 	protected static double computeReachRewardsUpperBound(PrismComponent parent, Model model, JDDNode tr, JDDNode stateRewards, JDDNode transRewards, JDDNode target, JDDNode maybe) throws PrismException
 	{
-		double upperBound;
+		double upperBound = Double.POSITIVE_INFINITY;
 		String method = null;
-		switch (parent.getSettings().getString(PrismSettings.PRISM_INTERVAL_ITER_BOUND_VARIANT)) {
-		case "Variant 1 (Coarse)":
+		switch (OptionsIntervalIteration.from(parent).getBoundMethod()) {
+		case VARIANT_1_COARSE:
 			upperBound = computeReachRewardsUpperBoundVariant1Coarse(parent, model, tr, stateRewards, transRewards, target, maybe);
 			method = "variant 1, coarse";
 			break;
-		case "Variant 1 (Fine)":
+		case VARIANT_1_FINE:
 			upperBound = computeReachRewardsUpperBoundVariant1Fine(parent, model, tr, stateRewards, transRewards, target, maybe);
 			method = "variant 1, fine";
 			break;
-		case "Default":
-		case "Variant 2":
+		case VARIANT_2:
+		case DEFAULT:
 			upperBound = computeReachRewardsUpperBoundVariant2(parent, model, tr, stateRewards, transRewards, target, maybe);
 			method = "variant 2";
 			break;
-		case "DS-MPI":
+		case DSMPI:
 			throw new PrismNotSupportedException("Upper bound heuristic Dijkstra Sweep MPI currently not supported for symbolic engines");
-		default:
-			throw new PrismNotSupportedException("Unsupported upper bound heuristic: " + parent.getSettings().getString(PrismSettings.PRISM_INTERVAL_ITER_BOUND_VARIANT));
+		}
+
+		if (method == null) {
+			throw new PrismException("Unsupported upper bound heuristic");
 		}
 
 		parent.getLog().print("Upper bound for ");
@@ -1993,7 +1995,7 @@ public class ProbModelChecker extends NonProbModelChecker
 
 		timer.stop();
 
-		if (parent.getSettings().getBoolean(PrismSettings.PRISM_INTERVAL_ITER_BOUND_VERBOSE)) {
+		if (OptionsIntervalIteration.from(parent).isBoundComputationVerbose()) {
 			parent.getLog().println("Upper bound for max expectation computation (variant 1, coarse):");
 			parent.getLog().println("p = " + p);
 			parent.getLog().println("q = " + q);
@@ -2103,7 +2105,7 @@ public class ProbModelChecker extends NonProbModelChecker
 
 		timer.stop();
 
-		if (parent.getSettings().getBoolean(PrismSettings.PRISM_INTERVAL_ITER_BOUND_VERBOSE)) {
+		if (OptionsIntervalIteration.from(parent).isBoundComputationVerbose()) {
 			parent.getLog().println("Upper bound for max expectation computation (variant 1, fine):");
 			StateValuesMTBDD.print(parent.getLog(), pt.copy(), model, "pt");
 			StateValuesMTBDD.print(parent.getLog(), qt.copy(), model, "qt");
@@ -2232,7 +2234,7 @@ public class ProbModelChecker extends NonProbModelChecker
 
 		timer.stop();
 
-		if (parent.getSettings().getBoolean(PrismSettings.PRISM_INTERVAL_ITER_BOUND_VERBOSE)) {
+		if (OptionsIntervalIteration.from(parent).isBoundComputationVerbose()) {
 			parent.getLog().println("Upper bound for max expectation computation (variant 1, fine):");
 			StateValuesMTBDD.print(parent.getLog(), dt.copy(), model, "dt");
 			StateValuesMTBDD.print(parent.getLog(), boundsOnExpectedVisits.copy(), model, "ζ*");
@@ -2295,16 +2297,20 @@ public class ProbModelChecker extends NonProbModelChecker
 			// compute the rewards
 
 			if (doIntervalIteration) {
-				double upperBound = getSettings().getDouble(PrismSettings.PRISM_INTERVAL_ITER_BOUND_MANUAL_UPPER);
-				if (!Double.isNaN(upperBound)) {
+				OptionsIntervalIteration iiOptions = OptionsIntervalIteration.from(this);
+
+				double upperBound;
+				if (iiOptions.hasManualUpperBound()) {
+					upperBound = iiOptions.getManualUpperBound();
 					getLog().printWarning("Upper bound for interval iteration manually set to " + upperBound);
 				} else {
 					upperBound = computeReachRewardsUpperBound(this, model, tr, sr, trr, b, maybe);
 				}
 				upper = JDD.ITE(maybe.copy(), JDD.Constant(upperBound), JDD.Constant(0));
 
-				double lowerBound = getSettings().getDouble(PrismSettings.PRISM_INTERVAL_ITER_BOUND_MANUAL_LOWER);
-				if (!Double.isNaN(lowerBound)) {
+				double lowerBound;
+				if (iiOptions.hasManualLowerBound()) {
+					lowerBound = iiOptions.getManualLowerBound();
 					getLog().printWarning("Lower bound for interval iteration manually set to " + lowerBound);
 				} else {
 					lowerBound = 0.0;
