@@ -1178,8 +1178,8 @@ public class DTMCModelChecker extends ProbModelChecker
 		if (!enforceMonotonicFromAbove) {
 			getLog().println("Note: Interval iteration is configured to not enforce monotonicity from above.");
 		}
-		if (enforceMonotonicFromBelow) {
-			getLog().println("Note: Interval iteration is configured to enforce monotonicity from below.");
+		if (!enforceMonotonicFromBelow) {
+			getLog().println("Note: Interval iteration is configured to not enforce monotonicity from below.");
 		}
 
 		IterationMethod.IterationIntervalIter below = iterationMethod.forMvMultInterval(dtmc, true, enforceMonotonicFromBelow, checkMonotonic);
@@ -2095,8 +2095,8 @@ public class DTMCModelChecker extends ProbModelChecker
 		if (!enforceMonotonicFromAbove) {
 			getLog().println("Note: Interval iteration is configured to not enforce monotonicity from above.");
 		}
-		if (enforceMonotonicFromBelow) {
-			getLog().println("Note: Interval iteration is configured to enforce monotonicity from below.");
+		if (!enforceMonotonicFromBelow) {
+			getLog().println("Note: Interval iteration is configured to not enforce monotonicity from below.");
 		}
 
 		IterationMethod.IterationIntervalIter below = iterationMethod.forMvMultRewInterval(dtmc, mcRewards, true, enforceMonotonicFromBelow, checkMonotonic);

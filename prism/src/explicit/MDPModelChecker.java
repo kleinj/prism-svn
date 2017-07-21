@@ -960,8 +960,8 @@ public class MDPModelChecker extends ProbModelChecker
 		if (!enforceMonotonicFromAbove) {
 			getLog().println("Note: Interval iteration is configured to not enforce monotonicity from above.");
 		}
-		if (enforceMonotonicFromBelow) {
-			getLog().println("Note: Interval iteration is configured to enforce monotonicity from below.");
+		if (!enforceMonotonicFromBelow) {
+			getLog().println("Note: Interval iteration is configured to not enforce monotonicity from below.");
 		}
 
 		IterationMethod.IterationIntervalIter below = iterationMethod.forMvMultMinMaxInterval(mdp, min, strat, true, enforceMonotonicFromBelow, checkMonotonic);
@@ -2458,8 +2458,8 @@ public class MDPModelChecker extends ProbModelChecker
 		if (!enforceMonotonicFromAbove) {
 			getLog().println("Note: Interval iteration is configured to not enforce monotonicity from above.");
 		}
-		if (enforceMonotonicFromBelow) {
-			getLog().println("Note: Interval iteration is configured to enforce monotonicity from below.");
+		if (!enforceMonotonicFromBelow) {
+			getLog().println("Note: Interval iteration is configured to not enforce monotonicity from below.");
 		}
 
 		IterationMethod.IterationIntervalIter below = iterationMethod.forMvMultRewMinMaxInterval(mdp, mdpRewards, min, strat, true, enforceMonotonicFromBelow, checkMonotonic);
