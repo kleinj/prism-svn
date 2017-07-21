@@ -994,17 +994,19 @@ public class Prism extends PrismComponent implements PrismSettingsListener
 	 * Returns an integer containing flags for the C++ implementation of interval iteration,
 	 * derived from the current settings object.
 	 */
-	public int getIntervalIterationFlags()
+	public int getIntervalIterationFlags() throws PrismException
 	{
 		int flags = 0;
 
-		if (settings.getBoolean(PrismSettings.PRISM_INTERVAL_ITER_MONOTONIC_BELOW))
+		OptionsIntervalIteration iiOptions = OptionsIntervalIteration.from(settings);
+
+		if (iiOptions.isEnforceMonotonicityFromBelow())
 			flags += 1;
 
-		if (settings.getBoolean(PrismSettings.PRISM_INTERVAL_ITER_MONOTONIC_ABOVE))
+		if (iiOptions.isEnforceMonotonicityFromAbove())
 			flags += 2;
 
-		if (settings.getBoolean(PrismSettings.PRISM_INTERVAL_ITER_SELECT_MIDPOINT))
+		if (iiOptions.isSelectMidpointForResult())
 			flags += 4;  // select midpoint for result
 
 		return flags;
