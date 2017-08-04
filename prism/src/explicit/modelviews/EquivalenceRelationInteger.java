@@ -27,8 +27,10 @@
 
 package explicit.modelviews;
 
+import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import common.functions.primitive.PairPredicateInt;
@@ -40,7 +42,13 @@ import common.IterableBitSet;
  */
 public class EquivalenceRelationInteger implements PairPredicateInt
 {
+	/** Mapping from index to the corresponding equivalence class */
 	final protected Map<Integer, BitSet> classes = new HashMap<Integer, BitSet>();
+
+	/** The list of equivalence classes */
+	final protected List<BitSet> classList = new ArrayList<BitSet>();
+
+	/** The set of states that are not a representative of an equivalence class */
 	final protected BitSet nonRepresentatives    = new BitSet();
 
 	public EquivalenceRelationInteger() {}
@@ -61,6 +69,7 @@ public class EquivalenceRelationInteger implements PairPredicateInt
 				}
 				nonRepresentatives.or(equivalenceClass);
 				nonRepresentatives.clear(equivalenceClass.nextSetBit(0));
+				classList.add(equivalenceClass);
 			}
 		}
 	}
@@ -81,6 +90,7 @@ public class EquivalenceRelationInteger implements PairPredicateInt
 		return equivalenceClass == null ? i : equivalenceClass.nextSetBit(0);
 	}
 
+	/** Get the equivalence class for index i */
 	public BitSet getEquivalenceClass(final int i)
 	{
 		BitSet equivalenceClass = getEquivalenceClassOrNull(i);
@@ -89,6 +99,23 @@ public class EquivalenceRelationInteger implements PairPredicateInt
 			equivalenceClass.set(i);
 		}
 		return equivalenceClass;
+	}
+
+	/** Get the number of equivalence classes */
+	public int getNumClasses()
+	{
+		return classList.size();
+	}
+
+	/** Get the i-th equivalence class */
+	public BitSet getIthEquivalenceClass(final int i)
+	{
+		return classList.get(i);
+	}
+
+	public int getRepresentativeForIthEquivalenceClass(final int i)
+	{
+		return getIthEquivalenceClass(i).nextSetBit(0);
 	}
 
 	/**
@@ -129,6 +156,7 @@ public class EquivalenceRelationInteger implements PairPredicateInt
 					}
 					nonRepresentatives.or(equivalenceClass);
 					nonRepresentatives.clear(equivalenceClass.nextSetBit(0));
+					classList.add(equivalenceClass);
 				}
 			}
 		}
