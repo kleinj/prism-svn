@@ -250,4 +250,18 @@ public class MDPDroppedChoicesCached extends MDPView
 		return mapping[first + choice];
 	}
 
+	/** Lift a strategy from the transformed model to the original model */
+	public void liftStrategy(int[] strat)
+	{
+		for (int i = 0, n = model.getNumStates(); i < n; i++) {
+			if (strat[i] < 0) {
+				// don't change negative choices (don't know, don't care, ...)
+				// assumes that don't care (-2) is still valid in the original model...
+			} else {
+				int originalChoice = mapChoiceToOriginalModel(i, strat[i]);
+				strat[i] = originalChoice;
+			}
+		}
+	}
+
 }
