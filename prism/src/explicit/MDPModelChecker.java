@@ -2149,9 +2149,6 @@ public class MDPModelChecker extends ProbModelChecker
 				zeroMECTimer.stop("no zero-reward ECs found, proceeding normally");
 			} else {
 				zeroMECTimer.stop("built quotient MDP with " + quotient.getNumberOfZeroRewardMECs() + " zero-reward MECs");
-				if (strat != null) {
-					throw new PrismException("Constructing a strategy for Rmin in the presence of zero-reward ECs is currently not supported");
-				}
 			}
 		}
 
@@ -2162,6 +2159,9 @@ public class MDPModelChecker extends ProbModelChecker
 			mainLog.println("Computing Rmin in zero-reward EC quotient model (" + quotientModelStates + " relevant states)...");
 			res = computeReachRewardsNumeric(quotient.getModel(), quotient.getRewards(), mdpSolnMethod, target, newInfStates, min, init, known, strat);
 			quotient.mapResults(res.soln);
+			if (strat != null) {
+				quotient.liftStrategy(strat);
+			}
 		} else {
 			res = computeReachRewardsNumeric(mdp, mdpRewards, mdpSolnMethod, target, inf, min, init, known, strat);
 		}
