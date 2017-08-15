@@ -2192,7 +2192,12 @@ public class NondetModelChecker extends NonProbModelChecker
 	protected StateValues computeTotalRewards(JDDNode tr, JDDNode tr01, JDDNode tra, JDDNode sr, JDDNode trr, boolean min) throws PrismException
 	{
 		if (min) {
-			throw new PrismNotSupportedException("Expected minimum total reward (C) is not yet supported for MDPs.");
+			if (!(tr.equals(model.getTrans()) &&
+			      tr01.equals(model.getTrans01()) &&
+			      tra.equals(model.getTransActions()))) {
+				throw new PrismNotSupportedException("Can't compute minimal total expected reward for changed transition function");
+			}
+			return computeTotalRewardsMin(sr, trr);
 		} else {
 			// max. We don't know if there are positive ECs, so we can't skip precomputation
 			return computeTotalRewardsMax(tr, tr01, tra, sr, trr, false);
@@ -2326,6 +2331,82 @@ public class NondetModelChecker extends NonProbModelChecker
 
 		timer = System.currentTimeMillis() - timer;
 		mainLog.println("Time for total reward computation: " + timer/1000.0 + " seconds.");
+
+		return rewards;
+	}
+
+	/**
+	 * Compute minimal total expected rewards for the current model.
+	 * @param sr the state rewards
+	 * @param trr the transition rewards
+	 */
+	protected StateValues computeTotalRewardsMin(JDDNode sr, JDDNode trr) throws PrismException	{
+		JDDNode zero, inf;
+		StateValues rewards;
+
+		if (doIntervalIteration) {
+			throw new PrismNotSupportedException("Interval iteration for total rewards is currently not supported");
+		}
+
+		if (fairness) {
+			throw new PrismNotSupportedException("Minimum total expected reward computation currently not supported under fairness.");
+		}
+
+		// Start expected total reward
+		mainLog.println("\nStarting total expected reward (min)...");
+		StopWatch timer = new StopWatch(mainLog);
+		timer.start("Total expected reward (min) computation");
+
+		mainLog.println("Precomputation: Determine target states (with zero-reward strategy)...");
+		StopWatch timerPre = new StopWatch(mainLog);
+		timerPre.start("precomputation");
+
+		// Compute all states where we have a zero-reward strategy (indefinitely choosing zero-reward choices).
+		// For those states, the minimising strategy can just play this strategy
+		zero = ZeroRewardECQuotient.computeZeroRewStrategyStates(this, model, model.getReach(), sr, trr);
+
+		// Compute the infinity states:
+		// all states where no strategy leads to one of the zero states
+		// those states will necessarily end up in some positive-reward end component and
+		// thus accumulate infinite reward
+		// inf =   Pmax(<> zeroRewStrategyStates)=0
+		inf = PrismMTBDD.Prob0A(model.getTrans01(),
+		                        model.getReach(),
+		                        model.getAllDDRowVars(),
+		                        model.getAllDDColVars(),
+		                        model.getAllDDNondetVars(),
+		                        model.getReach(),  // b1
+		                        zero);  // b2
+
+		JDDNode remaining= JDD.And(model.getReach().copy(), JDD.Not(inf.copy()), JDD.Not(zero.copy()));
+
+		String infCount = JDD.GetNumMintermsString(inf, model.getNumDDRowVars());
+		String zeroCount = JDD.GetNumMintermsString(zero, model.getNumDDRowVars());
+		String remainingCount = JDD.GetNumMintermsString(remaining, model.getNumDDRowVars());
+
+		timerPre.stop(infCount + " infinite states, " + zeroCount + " zero states, " + remainingCount + " states remaining");
+
+		if (remaining.equals(JDD.ZERO)) {
+			rewards = new StateValuesMTBDD(JDD.ITE(inf.copy(), JDD.PlusInfinity(), JDD.Constant(0)), model);
+		} else {
+			// Compute rewards, do standard min reachability reward calculation, with target = zero, inf = inf
+			rewards = computeReachRewardsNumeric(model.getTrans(),
+			                                     model.getTransActions(),
+			                                     model.getTrans01(),
+			                                     sr,
+			                                     trr,
+			                                     zero,  // target
+			                                     inf,
+			                                     remaining,
+			                                     true);  // min
+		}
+
+		// Finished expected total expected minimal reward
+		timer.stop();
+
+		JDD.Deref(inf);
+		JDD.Deref(zero);
+		JDD.Deref(remaining);
 
 		return rewards;
 	}
