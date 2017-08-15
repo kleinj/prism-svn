@@ -198,6 +198,23 @@ public interface NondetModel extends Model
 	}
 
 	/**
+	 * Find a safe choice (all successors are in the set {@code remain}) from state
+	 * {@code s} and return its index. If there is no safe choice, return -1.
+	 * @param s the state to consider
+	 * @param remain the set of safe successor states
+	 * @return the index of a safe choice, -1 if there are none
+	 */
+	public default int findSafeChoice(int s, BitSet remain)
+	{
+		for (int choice = 0, numChoices = getNumChoices(s); choice < numChoices; choice++) {
+			if (allSuccessorsInSet(s, choice, remain)) {
+				return choice;
+			}
+		}
+		return -1;
+	}
+
+	/**
 	 * Get an iterator over the successor states from choice {@code i} of state {@code s}.
 	 * @param s The state
 	 * @param i Choice index
