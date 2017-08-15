@@ -582,7 +582,7 @@ public class MDPModelChecker extends ProbModelChecker
 	 * @param min Min or max probabilities (true=min, false=max)
 	 * @param strat Storage for (memoryless) strategy choice indices (ignored if null)
 	 */
-	public BitSet prob0(MDP mdp, BitSet remain, BitSet target, boolean min, int strat[])
+	public BitSet prob0(MDPGeneric<?> mdp, BitSet remain, BitSet target, boolean min, int strat[])
 	{
 		int n, iters;
 		BitSet u, soln, unknown;
@@ -676,7 +676,7 @@ public class MDPModelChecker extends ProbModelChecker
 	 * @param min Min or max probabilities (true=min, false=max)
 	 * @param strat Storage for (memoryless) strategy choice indices (ignored if null)
 	 */
-	public BitSet prob1(MDP mdp, BitSet remain, BitSet target, boolean min, int strat[])
+	public BitSet prob1(MDPGeneric<?> mdp, BitSet remain, BitSet target, boolean min, int strat[])
 	{
 		int n, iters;
 		BitSet u, v, soln, unknown;
@@ -785,7 +785,7 @@ public class MDPModelChecker extends ProbModelChecker
 	 * @param strat Storage for (memoryless) strategy choice indices (ignored if null)
 	 * @return the set of states with Pmax>0[ remain U target ]
 	 */
-	public BitSet probGt0E(MDP mdp, BitSet remain, BitSet target, int strat[])
+	public BitSet probGt0E(MDPGeneric<?> mdp, BitSet remain, BitSet target, int strat[])
 	{
 		// Special case: no target states
 		if (target.cardinality() == 0) {
