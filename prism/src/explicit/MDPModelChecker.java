@@ -597,6 +597,11 @@ public class MDPModelChecker extends ProbModelChecker
 		if (target.cardinality() == 0) {
 			soln = new BitSet(mdp.getNumStates());
 			soln.set(0, mdp.getNumStates());
+
+			// for min, generate strategy, any choice (-2) is fine
+			if (strat != null) {
+				Arrays.fill(strat, -2);
+			}
 			return soln;
 		}
 
