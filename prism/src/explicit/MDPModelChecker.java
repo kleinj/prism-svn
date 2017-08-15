@@ -2050,20 +2050,27 @@ public class MDPModelChecker extends ProbModelChecker
 			mainLog.println("Precomputation took " + timerPre / 1000.0 + " seconds, " + inf.cardinality() + " infinite states, " + (n - inf.cardinality()) + " states remaining.");
 		}
 
-		// Compute rewards
-		// do standard max reward calculation, but with empty target set
-		switch (mdpSolnMethod) {
-		case VALUE_ITERATION:
-			res = computeReachRewardsValIter(mdp, mdpRewards, new BitSet(), inf, false, null, null, null);
-			break;
-		case GAUSS_SEIDEL:
-			res = computeReachRewardsGaussSeidel(mdp, mdpRewards, new BitSet(), inf, false, null, null, null);
-			break;
-		case POLICY_ITERATION:
-			res = computeReachRewardsPolIter(mdp, mdpRewards, new BitSet(), inf, false, null);
-			break;
-		default:
-			throw new PrismException("Unknown MDP solution method " + mdpSolnMethod.fullName());
+		if (inf.cardinality() == mdp.getNumStates()) {
+			// all states are infinity states
+			res = new ModelCheckerResult();
+			res.soln = new double[mdp.getNumStates()];
+			Arrays.fill(res.soln, Double.POSITIVE_INFINITY);
+		} else {
+			// Compute rewards
+			// do standard max reward calculation, but with empty target set
+			switch (mdpSolnMethod) {
+			case VALUE_ITERATION:
+				res = computeReachRewardsValIter(mdp, mdpRewards, new BitSet(), inf, false, null, null, null);
+				break;
+			case GAUSS_SEIDEL:
+				res = computeReachRewardsGaussSeidel(mdp, mdpRewards, new BitSet(), inf, false, null, null, null);
+				break;
+			case POLICY_ITERATION:
+				res = computeReachRewardsPolIter(mdp, mdpRewards, new BitSet(), inf, false, null);
+				break;
+			default:
+				throw new PrismException("Unknown MDP solution method " + mdpSolnMethod.fullName());
+			}
 		}
 
 		// Finished expected total reward
