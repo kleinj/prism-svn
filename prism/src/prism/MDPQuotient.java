@@ -498,18 +498,32 @@ public class MDPQuotient implements ModelTransformation<NondetModel,NondetModel>
 
 			// outgoing actions from ECs
 			if (verbose) JDD.PrintMinterms(parent.getLog(), rew.copy(), "trans rew");
+
+			// restrict to rewards for transitions that start in an EC
 			JDDNode rewFromEC = JDD.Times(rew.copy(), inEC.copy());
 			if (verbose) JDD.PrintMinterms(parent.getLog(), rewFromEC.copy(), "rewFromEC (1)");
+
+			// move originating state into actFromStates
 			rewFromEC = JDD.PermuteVariables(rewFromEC, originalModel.getAllDDRowVars(), actFromStates);
 			if (verbose) JDD.PrintMinterms(parent.getLog(), rewFromEC.copy(), "rewFromEC (2)");
+
+			// add tau marker
 			rewFromEC = JDD.Times(tau(), rewFromEC);
 			if (verbose) JDD.PrintMinterms(parent.getLog(), rewFromEC.copy(), "rewFromEC (3)");
+
+			// move target states to row vars (temporarily, for mapping)
 			rewFromEC = JDD.PermuteVariables(rewFromEC, originalModel.getAllDDColVars(), originalModel.getAllDDRowVars());
 			if (verbose) JDD.PrintMinterms(parent.getLog(), rewFromEC.copy(), "rewFromEC (4)");
+
+			// map target states (currently in row vars) to the quotient states
 			rewFromEC = JDD.Times(rewFromEC, map.copy());
 			if (verbose) JDD.PrintMinterms(parent.getLog(), rewFromEC.copy(), "rewFromEC (5)");
-			rewFromEC = JDD.SumAbstract(rewFromEC, originalModel.getAllDDRowVars());
+
+			// abstract away the target states in the row vars (using max)
+			rewFromEC = JDD.MaxAbstract(rewFromEC, originalModel.getAllDDRowVars());
 			if (verbose) JDD.PrintMinterms(parent.getLog(), rewFromEC.copy(), "rewFromEC (6)");
+
+			// intersect with the transition function (ensures that row vars are filled with the ec representative)
 			rewFromEC = JDD.Times(rewFromEC, newTrans01.copy());
 			if (verbose) JDD.PrintMinterms(parent.getLog(), rewFromEC.copy(), "rewFromEC (7)");
 
@@ -538,14 +552,17 @@ public class MDPQuotient implements ModelTransformation<NondetModel,NondetModel>
 
 			JDDNode transActionsNormal = originalModel.getTransActions().copy();
 			if (verbose) JDD.PrintMinterms(parent.getLog(), transActionsNormal.copy(), "transActionsNormal (1)");
+
 			transActionsNormal = JDD.Times(transActionsNormal, notTau());
 			if (verbose) JDD.PrintMinterms(parent.getLog(), transActionsNormal.copy(), "transActionsNormal (2)");
 
 			JDDNode transActionsFromEC = originalModel.getTransActions().copy();
 			if (verbose) JDD.PrintMinterms(parent.getLog(), transActionsFromEC.copy(), "transActionsFromEC (1)");
+
 			// shift from states to actFromEC
 			transActionsFromEC = JDD.PermuteVariables(transActionsFromEC, originalModel.getAllDDRowVars(), actFromStates);
 			if (verbose) JDD.PrintMinterms(parent.getLog(), transActionsFromEC.copy(), "transActionsFromEC (2)");
+
 			transActionsFromEC = JDD.Times(transActionsFromEC, tau());
 			if (verbose) JDD.PrintMinterms(parent.getLog(), transActionsFromEC.copy(), "transActionsFromEC (3)");
 
