@@ -1897,7 +1897,7 @@ public class MDPModelChecker extends ProbModelChecker
 	public ModelCheckerResult computeTotalRewards(MDP mdp, MDPRewards mdpRewards, boolean min) throws PrismException
 	{
 		if (min) {
-			throw new PrismNotSupportedException("Minimum total expected reward not supported in explicit engine");
+			return computeTotalRewardsMin(mdp, mdpRewards);
 		} else {
 			// max. We don't know if there are positive ECs, so we can't skip precomputation
 			return computeTotalRewardsMax(mdp, mdpRewards, false);
@@ -2010,6 +2010,97 @@ public class MDPModelChecker extends ProbModelChecker
 		return res;
 	}
 
+	/**
+	 * Compute minimal total expected rewards.
+	 * @param mdp The MDP
+	 * @param mdpRewards The rewards
+	 */
+	public ModelCheckerResult computeTotalRewardsMin(MDP mdp, MDPRewards mdpRewards) throws PrismException
+	{
+		int n;
+		BitSet zero, inf;
+		int[] strat = null;
+
+		// Local copy of setting
+		MDPSolnMethod mdpSolnMethod = this.mdpSolnMethod;
+
+		// Switch to a supported method, if necessary
+		if (!(mdpSolnMethod == MDPSolnMethod.VALUE_ITERATION || mdpSolnMethod == MDPSolnMethod.GAUSS_SEIDEL || mdpSolnMethod == MDPSolnMethod.POLICY_ITERATION)) {
+			mdpSolnMethod = MDPSolnMethod.GAUSS_SEIDEL;
+			mainLog.printWarning("Switching to MDP solution method \"" + mdpSolnMethod.fullName() + "\"");
+		}
+
+		// Start expected total reward
+		mainLog.println("\nStarting total expected reward (min)...");
+		StopWatch timer = new StopWatch(mainLog);
+		timer.start("Total expected reward (min) computation");
+
+		// Store num states
+		n = mdp.getNumStates();
+
+		// If required, create/initialise strategy storage
+		// Set choices to -1, denoting unknown
+		if (genStrat || exportAdv || mdpSolnMethod == MDPSolnMethod.POLICY_ITERATION) {
+			strat = new int[n];
+			Arrays.fill(strat, -1);
+		}
+
+		mainLog.println("Precomputation: Determine target states (with zero-reward strategy)...");
+		StopWatch timerPre = new StopWatch(mainLog);
+		timerPre.start("precomputation");
+
+		// Compute all states where we have a zero-reward strategy (indefinitely choosing zero-reward choices).
+		// For those states, the minimising strategy can just play this strategy (which is recorded in strat)
+		zero = ZeroRewardECQuotient.computeZeroRewStrategyStates(this, mdp, mdpRewards, strat);
+
+		// Compute the infinity states:
+		// all states where no strategy leads to one of the zero states
+		// those states will necessarily end up in some positive-reward end component and
+		// thus accumulate infinite reward
+		// inf =   Pmax(<> zeroRewStrategyStates)=0
+		inf = prob0(mdp, null, zero, false, null);
+
+		// construct strategy for inf states
+		if (strat != null) {
+			// If min reward is infinite, all choices give infinity
+			// So the choice can be arbitrary, denoted by -2;
+			for (int i : IterableBitSet.getSetBits(inf)) {
+				strat[i] = -2;
+			}
+		}
+
+		int remaining = n - inf.cardinality() - zero.cardinality();
+
+		timerPre.stop(inf.cardinality() + " infinite states, " + zero.cardinality() + " zero states, " + remaining + " states remaining");
+
+		// Compute rewards, do standard min reachability reward calculation, with target = zero, inf = inf
+		ModelCheckerResult res = computeReachRewardsNumeric(mdp, mdpRewards, mdpSolnMethod, zero, inf, true, null, null, strat);
+
+		// Store strategy
+		if (genStrat) {
+			res.strat = new MDStrategyArray(mdp, strat);
+		}
+
+		// Export adversary
+		if (exportAdv) {
+			// Prune strategy
+			restrictStrategyToReachableStates(mdp, strat);
+			// Export
+			PrismLog out = new PrismFileLog(exportAdvFilename);
+			new DTMCFromMDPMemorylessAdversary(mdp, strat).exportToPrismExplicitTra(out);
+			out.close();
+		}
+
+		// Finished expected reachability
+		timer.stop();
+
+		// Update time taken
+		res.timeTaken = timer.elapsedSeconds();
+		res.timePre = timerPre.elapsedSeconds();
+
+		// Return results
+		return res;
+	}
 
 	/**
 	 * Compute expected reachability rewards.
