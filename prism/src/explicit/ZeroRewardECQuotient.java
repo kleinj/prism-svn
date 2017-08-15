@@ -216,6 +216,65 @@ public class ZeroRewardECQuotient extends PrismComponent
 	}
 
 	/**
+	 * Compute the states that have a zero-reward strategy, i.e.,
+	 * that can remain in a subset of the MDP indefinitely without
+	 * ever accumulating reward. Optionally, computes the strategy.
+	 *
+	 * @param parent the parent PrismComponent (for settings)
+	 * @param mdp the MDP
+	 * @param rewards the MDP rewards
+	 * @param strat if non-{@code null}, array for storing the strategy choices
+	 * @return the set of states with a zero-reward strategy
+	 */
+	public static BitSet computeZeroRewStrategyStates(PrismComponent parent, MDP mdp, MDPRewards rewards, int[] strat) throws PrismException
+	{
+		PairPredicateInt positiveRewardChoice = (int s, int i) -> {
+			if (rewards.getStateReward(s) > 0)
+				return true;
+			if (rewards.getTransitionReward(s, i) > 0) {
+				return true;
+			}
+			return false;
+		};
+
+		// drop positive reward choices
+		MDPDroppedChoicesCached zeroRewMDP = new MDPDroppedChoicesCached(mdp, positiveRewardChoice);
+
+		// identify states that do not have any choices left
+		//  -> states where we'd have to take a positive reward choice
+		//     or which are positive reward states
+		BitSet trapStates = new BitSet();
+		for (int i = 0, n = mdp.getNumStates(); i < n; i++) {
+			if (zeroRewMDP.getNumChoices(i) == 0) {
+				trapStates.set(i);
+			}
+		}
+
+		// construct MDP model checker, for prob0e computation
+		MDPModelChecker mc = new MDPModelChecker(parent);
+		mc.setSilentPrecomputations(true);
+
+		// compute set of states that have a strategy to infinitely avoid the trapStates,
+		// i.e., a strategy of indefinitely taking only zero-reward choices
+		//  = prob0e(all, trapStates)
+		BitSet zeroRewStrategyStates = mc.prob0(zeroRewMDP, null, trapStates, true, strat);
+
+		if (strat != null) {
+			// first, convert -2 (don't care) choices into a zero-rew choice for states that also have positive reward choices
+			for (int s : IterableBitSet.getSetBits(zeroRewStrategyStates)) {
+				if (strat[s] == -2 && zeroRewMDP.getNumChoices(s) != mdp.getNumChoices(s)) {
+					strat[s] = 0;  // choice 0 exists, otherwise the state would have been a trap state
+				}
+			}
+
+			// lift strategy from the zero-reward sub-MDP to the original MDP
+			zeroRewMDP.liftStrategy(strat);
+		}
+
+		return zeroRewStrategyStates;
+	}
+
+	/**
 	 * Get the zero-reward end component quotient for the given MDP and reward structure,
 	 * or {@code null} if there are no zero-reward end components.
 	 * @param parent the parent PrismComponent
