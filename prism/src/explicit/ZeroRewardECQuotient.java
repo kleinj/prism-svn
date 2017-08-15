@@ -122,6 +122,10 @@ public class ZeroRewardECQuotient
 
 		// we drop zero reward loops on the equivalence classes
 		PairPredicateInt zeroRewardECloop = (int s, int i) -> {
+			// don't drop choices for states outside of restrict
+			if (!restrict.get(s))
+				return false;
+
 			if (positiveRewardChoice.test(s, i)) {
 				return false;
 			}
