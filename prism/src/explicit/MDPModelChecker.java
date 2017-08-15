@@ -1984,6 +1984,7 @@ public class MDPModelChecker extends ProbModelChecker
 		int n;
 		long timer;
 		BitSet inf;
+		int strat[] = null;
 
 		// Local copy of setting
 		MDPSolnMethod mdpSolnMethod = this.mdpSolnMethod;
@@ -2004,6 +2005,13 @@ public class MDPModelChecker extends ProbModelChecker
 		// Store num states
 		n = mdp.getNumStates();
 
+		// If required, create/initialise strategy storage
+		// Set choices to -1, denoting unknown
+		if (genStrat || exportAdv || mdpSolnMethod == MDPSolnMethod.POLICY_ITERATION) {
+			strat = new int[n];
+			Arrays.fill(strat, -1);
+		}
+
 		long timerPre;
 
 		if (noPositiveECs) {
@@ -2018,12 +2026,20 @@ public class MDPModelChecker extends ProbModelChecker
 			ECComputer ecs = ECComputer.createECComputer(this, mdp);
 			ecs.computeMECStates();
 			BitSet positiveECs = new BitSet();
+			BitSet ecTargetsForStrat = new BitSet();
 			for (BitSet ec : ecs.getMECStates()) {
 				// check if this MEC is positive
 				boolean positiveEC = false;
+				int targetState = -1;
+				int targetChoice = -1;
+
 				for (int state : new IterableStateSet(ec, n)) {
 					if (mdpRewards.getStateReward(state) > 0) {
 						// state with positive reward in this MEC
+						if (strat != null) {
+							targetState = state;
+							targetChoice = mdp.findSafeChoice(state, ec);
+						}
 						positiveEC = true;
 						break;
 					}
@@ -2031,6 +2047,10 @@ public class MDPModelChecker extends ProbModelChecker
 						if (mdpRewards.getTransitionReward(state, choice) > 0 &&
 								mdp.allSuccessorsInSet(state, choice, ec)) {
 							// choice from this state with positive reward back into this MEC
+							if (strat != null) {
+								targetState = state;
+								targetChoice = choice;
+							}
 							positiveEC = true;
 							break;
 						}
@@ -2038,13 +2058,25 @@ public class MDPModelChecker extends ProbModelChecker
 				}
 				if (positiveEC) {
 					positiveECs.or(ec);
+
+					if (strat != null) {
+						ecTargetsForStrat.set(targetState);
+						// in the target state, play the target choice, guaranteeing positive reward accumulation
+						strat[targetState] = targetChoice;
+					}
 				}
 			}
 
-			// inf = Pmax[ <> positiveECs ] > 0
-			//     = ! (Pmax[ <> positiveECs ] = 0)
-			inf = prob0(mdp, null, positiveECs, false, null);  // Pmax[ <> positiveECs ] = 0
-			inf.flip(0,n);  // !(Pmax[ <> positive ECs ] = 0) = Pmax[ <> positiveECs ] > 0
+			if (strat != null) {
+				// compute strategy for positive EC states: reach one of the target states
+				// temporarily silence logging during prob1 computation
+				boolean old = setSilentPrecomputations(true);
+				prob1(mdp, positiveECs, ecTargetsForStrat, false, strat);  // prob1e
+				setSilentPrecomputations(old);
+			}
+
+			// inf = Pmax[ <> positiveECs ] > 0, compute strategy for inf states if necessary
+			inf = probGt0E(mdp, null, positiveECs, strat);
 
 			timerPre = System.currentTimeMillis() - timerPre;
 			mainLog.println("Precomputation took " + timerPre / 1000.0 + " seconds, " + inf.cardinality() + " infinite states, " + (n - inf.cardinality()) + " states remaining.");
@@ -2060,17 +2092,32 @@ public class MDPModelChecker extends ProbModelChecker
 			// do standard max reward calculation, but with empty target set
 			switch (mdpSolnMethod) {
 			case VALUE_ITERATION:
-				res = computeReachRewardsValIter(mdp, mdpRewards, new BitSet(), inf, false, null, null, null);
+				res = computeReachRewardsValIter(mdp, mdpRewards, new BitSet(), inf, false, null, null, strat);
 				break;
 			case GAUSS_SEIDEL:
-				res = computeReachRewardsGaussSeidel(mdp, mdpRewards, new BitSet(), inf, false, null, null, null);
+				res = computeReachRewardsGaussSeidel(mdp, mdpRewards, new BitSet(), inf, false, null, null, strat);
 				break;
 			case POLICY_ITERATION:
-				res = computeReachRewardsPolIter(mdp, mdpRewards, new BitSet(), inf, false, null);
+				res = computeReachRewardsPolIter(mdp, mdpRewards, new BitSet(), inf, false, strat);
 				break;
 			default:
 				throw new PrismException("Unknown MDP solution method " + mdpSolnMethod.fullName());
 			}
+		}
+
+		// Store strategy
+		if (genStrat) {
+			res.strat = new MDStrategyArray(mdp, strat);
+		}
+
+		// Export adversary
+		if (exportAdv) {
+			// Prune strategy
+			restrictStrategyToReachableStates(mdp, strat);
+			// Export
+			PrismLog out = new PrismFileLog(exportAdvFilename);
+			new DTMCFromMDPMemorylessAdversary(mdp, strat).exportToPrismExplicitTra(out);
+			out.close();
 		}
 
 		// Finished expected total reward
