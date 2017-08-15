@@ -426,8 +426,12 @@ def runPrism(args, dir=""):
         for line in open(logFile, 'r').readlines():
             if re.match('Testing result:', line):
                 printTestResult(line)
-            elif options.showWarnings and re.match('Warning:', line):
-                printTestResult(line)
+            elif re.match('Warning:', line):
+                if options.showWarnings:
+                    printTestResult(line)
+                else:
+                    # We don't print it, but we count it
+                    countTestResult(line)
             elif options.verboseTest:
                 # in verbose mode, also print the non-matching lines
                 # rstrip to remove newline before printing
