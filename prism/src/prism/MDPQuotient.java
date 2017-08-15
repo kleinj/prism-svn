@@ -130,6 +130,24 @@ public class MDPQuotient implements ModelTransformation<NondetModel,NondetModel>
 	}
 
 	/**
+	 * Get the transformed state reward relation, given the old reward relation.
+	 * <br>[ REFS: <i>result</i>, DEREFS: <i>none</i> ]
+	 */
+	public JDDNode getTransformedStateReward(JDDNode stateRew) throws PrismException
+	{
+		return transform.getTransformedStateReward(stateRew);
+	}
+
+	/**
+	 * Get the transformed transition reward relation, given the old reward relation.
+	 * <br>[ REFS: <i>result</i>, DEREFS: <i>none</i> ]
+	 */
+	public JDDNode getTransformedTransReward(JDDNode transRew) throws PrismException
+	{
+		return transform.getTransformedTransReward(transRew);
+	}
+
+	/**
 	 * Compute the quotient MDP, collapsing each maximal end component (MEC) to a single state.
 	 * Only collapses MECs contained in {@code restrict}.
 	 *
