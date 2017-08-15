@@ -55,6 +55,7 @@ import strat.MDStrategyArray;
 import acceptance.AcceptanceReach;
 import acceptance.AcceptanceType;
 import automata.DA;
+import common.BitSetAndQueue;
 import common.IntSet;
 import common.IterableBitSet;
 import explicit.modelviews.MDPDroppedAllChoices;
@@ -769,6 +770,68 @@ public class MDPModelChecker extends ProbModelChecker
 		}
 
 		return u;
+	}
+
+	/**
+	 * Qualitative precomputation algorithm for Pmax>0[ remain U target],
+	 * i.e. determine the states of an MDP where there exists a strategy
+	 * to reach a state in {@code target} with positive probability,
+	 * while remaining in {@code remain}.
+	 * Optionally, store optimal (memoryless) strategy info for the remain states
+	 * that can reach the target with positive probability.
+	 * @param mdp The MDP
+	 * @param remain Remain in these states (optional: null means "all")
+	 * @param target Target states
+	 * @param strat Storage for (memoryless) strategy choice indices (ignored if null)
+	 * @return the set of states with Pmax>0[ remain U target ]
+	 */
+	public BitSet probGt0E(MDP mdp, BitSet remain, BitSet target, int strat[])
+	{
+		// Special case: no target states
+		if (target.cardinality() == 0) {
+			return new BitSet(mdp.getNumStates());
+		}
+
+		PredecessorRelation pre = mdp.getPredecessorRelation(this, true);
+
+		// Do backward reachability, while remaining in 'remain'
+		BitSetAndQueue queue = new BitSetAndQueue(target);
+		BitSet canReachTarget = new BitSet();
+		while (!queue.isEmpty()) {
+			int state = queue.dequeue();
+
+			if (canReachTarget.get(state)) {
+				// we already know about this state (and have a strategy recorded)
+				continue;
+			}
+
+			if (!target.get(state)) {
+				// for non-target states, the first time we reach them, we record
+				// the strategy, if necessary
+				if (strat != null) {
+					// search for a choice that ensures that we reach 'canReachTarget' with positive probability
+					for (int choice = 0, numChoices = mdp.getNumChoices(state); choice < numChoices; choice++) {
+						if (mdp.someSuccessorsInSet(state, choice, canReachTarget)) {
+							strat[state] = choice;
+							break;
+						}
+					}
+					assert(strat[state] != -1);
+				}
+			}
+
+			// handling for this state is done
+			canReachTarget.set(state);
+
+			// enqueue all predecessors
+			for (int predecessor : pre.getPre(state)) {
+				if (!canReachTarget.get(predecessor) && (remain == null || remain.get(predecessor))) {
+					queue.enqueue(predecessor);
+				}
+			}
+		}
+
+		return canReachTarget;
 	}
 
 	/**
