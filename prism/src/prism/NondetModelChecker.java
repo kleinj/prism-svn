@@ -2385,8 +2385,6 @@ public class NondetModelChecker extends NonProbModelChecker
 		JDDNode inf, maybe, prob1, no;
 		StateValues rewards = null;
 
-		List<JDDNode> zeroCostEndComponents = null;
-
 		if (doIntervalIteration && min) {
 			throw new PrismNotSupportedException("Currently, Rmin is not supported with interval iteration and the symbolic engines");
 		}
@@ -2422,33 +2420,6 @@ public class NondetModelChecker extends NonProbModelChecker
 				JDD.Ref(reach);
 				inf = JDD.And(reach, JDD.Not(prob1));
 			} else {
-
-				if (prism.getCheckZeroLoops()) {
-					// find states transitions that have no cost
-					JDD.Ref(sr);
-					JDD.Ref(reach);
-					JDDNode zeroReach = JDD.And(reach, JDD.Apply(JDD.EQUALS, sr, JDD.Constant(0)));
-					JDD.Ref(b);
-					zeroReach = JDD.And(zeroReach, JDD.Not(b));
-					JDD.Ref(trr);
-					JDDNode zeroTrr = JDD.Apply(JDD.EQUALS, trr, JDD.Constant(0));
-					JDD.Ref(trans);
-					JDD.Ref(zeroTrr);
-					JDDNode zeroTrans = JDD.And(trans, zeroTrr);
-					JDD.Ref(trans01);
-					JDDNode zeroTrans01 = JDD.And(trans01, zeroTrr);
-
-					ECComputer ecComp = new ECComputerDefault(prism, zeroReach, zeroTrans, zeroTrans01, model.getAllDDRowVars(), model.getAllDDColVars(),
-							model.getAllDDNondetVars());
-					ecComp.computeMECStates();
-
-					zeroCostEndComponents = ecComp.getMECStates();
-
-					JDD.Deref(zeroReach);
-					JDD.Deref(zeroTrans);
-					JDD.Deref(zeroTrans01);
-				}
-
 				// compute states for which all adversaries don't reach goal with probability 1
 				no = PrismMTBDD.Prob0A(tr01, reach, allDDRowVars, allDDColVars, allDDNondetVars, reach, b);
 				prob1 = PrismMTBDD.Prob1E(tr01, reach, allDDRowVars, allDDColVars, allDDNondetVars, reach, b, no);
@@ -2460,16 +2431,6 @@ public class NondetModelChecker extends NonProbModelChecker
 			JDD.Ref(inf);
 			JDD.Ref(b);
 			maybe = JDD.And(reach, JDD.Not(JDD.Or(inf, b)));
-		}
-
-		if (prism.getCheckZeroLoops()) {
-			// need to deal with zero loops yet
-			if (min && zeroCostEndComponents != null && zeroCostEndComponents.size() > 0) {
-				mainLog.printWarning("PRISM detected your model contains " + zeroCostEndComponents.size() + " zero-reward "
-						+ ((zeroCostEndComponents.size() == 1) ? "loop." : "loops.\n") + "Your minimum rewards may be too low...");
-			}
-		} else if (min) {
-			mainLog.printWarning("PRISM hasn't checked for zero-reward loops.\n" + "Your minimum rewards may be too low...");
 		}
 
 		// print out yes/no/maybe
@@ -2484,12 +2445,56 @@ public class NondetModelChecker extends NonProbModelChecker
 		}
 		// otherwise we compute the actual rewards
 		else {
-			rewards = computeReachRewardsNumeric(tr, tra, tr01, sr, trr, b, inf, maybe, min);
-		}
+			ZeroRewardECQuotient quotient = null;
 
-		if (zeroCostEndComponents != null)
-			for (JDDNode zcec : zeroCostEndComponents)
-				JDD.Deref(zcec);
+			if (min) {
+				if (!tr.equals(model.getTrans()) ||
+				    !tra.equals(model.getTransActions()) ||
+				    !tr01.equals(model.getTrans01())) {
+					throw new PrismException("Can currently not compute zero-reward quotient for changed functions");
+				}
+
+				StopWatch timer = new StopWatch(mainLog);
+				mainLog.println("\nFor Rmin, checking for zero-reward end components...");
+				timer.start("checking for zero-reward end components");
+				quotient = ZeroRewardECQuotient.getQuotient(this, model, maybe, sr, trr);
+				if (quotient == null) {
+					timer.stop("no zero-reward end components found, proceeding normally");
+				} else {
+					timer.stop("built quotient MDP with " + quotient.getNumberOfZMECs() + " zero-reward MECs");
+				}
+			}
+
+			if (quotient == null) {
+				rewards = computeReachRewardsNumeric(tr, tra, tr01, sr, trr, b, inf, maybe, min);
+			} else {
+				assert(min == true);
+
+
+				JDDNode quotientGoal = quotient.mapStateSetToQuotient(b.copy());
+				JDDNode quotientInf = quotient.mapStateSetToQuotient(inf.copy());
+				JDDNode quotientMaybe = quotient.mapStateSetToQuotient(maybe.copy());
+
+				mainLog.println("\nComputing Rmin in zero-reward EC quotient MDP (" + JDD.GetNumMintermsString(quotientMaybe, quotient.getQuotientModel().getNumDDRowVars()) + " relevant states)...");
+
+				NondetModelChecker mcQuotient = (NondetModelChecker) createModelChecker(quotient.getQuotientModel());
+
+				rewards = mcQuotient.computeReachRewardsNumeric(quotient.getQuotientModel().getTrans(),
+				                                                quotient.getQuotientModel().getTransActions(),
+				                                                quotient.getQuotientModel().getTrans01(),
+				                                                quotient.getQuotientStateRew(),
+				                                                quotient.getQuotientTransRew(),
+				                                                quotientGoal,
+				                                                quotientInf,
+				                                                quotientMaybe,
+				                                                min);
+
+				JDD.Deref(quotientGoal, quotientInf, quotientMaybe);
+
+				rewards = quotient.projectToOriginalModel(rewards);
+				quotient.clear();
+			}
+		}
 
 		// derefs
 		JDD.Deref(inf);
