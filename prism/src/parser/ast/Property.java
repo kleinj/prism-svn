@@ -445,8 +445,26 @@ public class Property extends ASTElement
 				}
 			}
 			// Compare results
-			if (!rationalRes.equals(rationalExp))
-				throw new PrismException("Wrong result (expected " + (simple ? "" : strExpected + " = ") + rationalExp + ", got " + rationalRes + ")");
+			if (!rationalRes.equals(rationalExp)) {
+				boolean match = false;
+
+				if (type instanceof TypeDouble) {
+					// try imprecise comparison
+					try {
+						double doubleExp = Double.parseDouble(strExpected);
+						if (PrismUtils.doublesAreCloseRel(doubleExp, rationalRes.doubleValue(), 1e-5)) {
+							throw new PrismException("Inexact, but close result (expected '" + strExpected + "' = " + rationalExp + " (" + rationalExp.toApproximateString() +"), got " + rationalRes + " (" + rationalRes.toApproximateString() + "))");
+						} else {
+							match = true;
+						}
+					} catch (NumberFormatException e) {
+					}
+				}
+
+				if (!match) {
+					throw new PrismException("Wrong result (expected '" + strExpected + "' = " + rationalExp + " (" + rationalExp.toApproximateString() +"), got " + rationalRes + " (" + rationalRes.toApproximateString() + "))");
+				}
+			}
 		}
 		else if (type instanceof TypeVoid && result instanceof TileList) { //Pareto curve
 
