@@ -2114,6 +2114,9 @@ public class MDPModelChecker extends ProbModelChecker
 		
 		// Precomputation (not optional)
 		timerProb1 = System.currentTimeMillis();
+		// in addition to determining the inf set, for policy iteration
+		// in case of Rmin the prob1 call below also constructs an
+		// initial proper scheduler (with P[F target] = 1)
 		inf = prob1(mdp, null, target, !min, strat);
 		inf.flip(0, n);
 		timerProb1 = System.currentTimeMillis() - timerProb1;
@@ -2147,7 +2150,11 @@ public class MDPModelChecker extends ProbModelChecker
 		}
 
 		ZeroRewardECQuotient quotient = null;
-		boolean doZeroMECCheckForMin = true;
+		// For policy iteration, we don't have to check for zero-reward end components and do quotienting:
+		// When starting with a proper scheduler (see the prob1 call above),
+		// policy iteration converges even in the presence of zero-reward end components
+		// (see, e.g., Bertsekas & Tsitsiklis: "An Analysis of Stochastic Shortest Path Problems", 1991)
+		boolean doZeroMECCheckForMin = mdpSolnMethod != MDPSolnMethod.POLICY_ITERATION;
 		if (min & doZeroMECCheckForMin) {
 			StopWatch zeroMECTimer = new StopWatch(mainLog);
 			zeroMECTimer.start("checking for zero-reward ECs");
