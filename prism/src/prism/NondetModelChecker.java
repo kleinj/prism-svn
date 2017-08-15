@@ -2383,11 +2383,7 @@ public class NondetModelChecker extends NonProbModelChecker
 	protected StateValues computeReachRewards(JDDNode tr, JDDNode tra, JDDNode tr01, JDDNode sr, JDDNode trr, JDDNode b, boolean min) throws PrismException
 	{
 		JDDNode inf, maybe, prob1, no;
-		JDDNode rewardsMTBDD;
-		DoubleVector rewardsDV;
 		StateValues rewards = null;
-		// Local copy of setting
-		int engine = this.engine;
 
 		List<JDDNode> zeroCostEndComponents = null;
 
@@ -2481,9 +2477,6 @@ public class NondetModelChecker extends NonProbModelChecker
 		mainLog.print(", inf = " + JDD.GetNumMintermsString(inf, allDDRowVars.n()));
 		mainLog.print(", maybe = " + JDD.GetNumMintermsString(maybe, allDDRowVars.n()) + "\n");
 
-		JDDNode lower = null;
-		JDDNode upper = null;
-
 		// if maybe is empty, we have the rewards already
 		if (maybe.equals(JDD.ZERO)) {
 			JDD.Ref(inf);
@@ -2491,90 +2484,118 @@ public class NondetModelChecker extends NonProbModelChecker
 		}
 		// otherwise we compute the actual rewards
 		else {
-
-			if (doIntervalIteration) {
-				OptionsIntervalIteration iiOptions = OptionsIntervalIteration.from(this);
-
-				double upperBound;
-				if (iiOptions.hasManualUpperBound()) {
-					upperBound = iiOptions.getManualUpperBound();
-					getLog().printWarning("Upper bound for interval iteration manually set to " + upperBound);
-				} else {
-					upperBound = ProbModelChecker.computeReachRewardsUpperBound(this, model, tr, sr, trr, b, maybe);
-				}
-				upper = JDD.ITE(maybe.copy(), JDD.Constant(upperBound), JDD.Constant(0));
-
-				double lowerBound;
-				if (iiOptions.hasManualLowerBound()) {
-					lowerBound = iiOptions.getManualLowerBound();
-					getLog().printWarning("Lower bound for interval iteration manually set to " + lowerBound);
-				} else {
-					lowerBound = 0.0;
-				}
-				lower = JDD.ITE(maybe.copy(), JDD.Constant(lowerBound), JDD.Constant(0));
-			}
-
-			// compute the rewards
-			mainLog.println("\nComputing remaining rewards...");
-			// switch engine, if necessary
-			if (engine == Prism.HYBRID) {
-				mainLog.println("Switching engine since hybrid engine does yet support this computation...");
-				engine = Prism.SPARSE;
-			}
-			mainLog.println("Engine: " + Prism.getEngineString(engine));
-			try {
-				switch (engine) {
-				case Prism.MTBDD:
-					if (doIntervalIteration) {
-						rewardsMTBDD = PrismMTBDD.NondetReachRewardInterval(tr, sr, trr, odd, nondetMask, allDDRowVars, allDDColVars, allDDNondetVars, b, inf, maybe, lower, upper, min, prism.getIntervalIterationFlags());
-					} else {
-						rewardsMTBDD = PrismMTBDD.NondetReachReward(tr, sr, trr, odd, nondetMask, allDDRowVars, allDDColVars, allDDNondetVars, b, inf, maybe, min);
-					}
-					rewards = new StateValuesMTBDD(rewardsMTBDD, model);
-					break;
-				case Prism.SPARSE:
-					if (doIntervalIteration) {
-						rewardsDV = PrismSparse.NondetReachRewardInterval(tr, tra, model.getSynchs(), sr, trr, odd, allDDRowVars, allDDColVars, allDDNondetVars, b, inf,
-								maybe, lower, upper, min, prism.getIntervalIterationFlags());
-					} else {
-						rewardsDV = PrismSparse.NondetReachReward(tr, tra, model.getSynchs(), sr, trr, odd, allDDRowVars, allDDColVars, allDDNondetVars, b, inf,
-								maybe, min);
-					}
-					rewards = new StateValuesDV(rewardsDV, model);
-					break;
-				case Prism.HYBRID:
-					throw new PrismException("Hybrid engine does not yet support this type of property (use sparse or MTBDD engine instead)");
-					// rewardsDV = PrismHybrid.NondetReachReward(tr, sr, trr,
-					// odd, allDDRowVars, allDDColVars, allDDNondetVars, b, inf,
-					// maybe, min);
-					// rewards = new StateValuesDV(rewardsDV, model);
-					// break;
-				default:
-					throw new PrismException("Unknown engine");
-				}
-			} catch (PrismException e) {
-				JDD.Deref(inf);
-				JDD.Deref(maybe);
-				if (lower != null) JDD.Deref(lower);
-				if (upper != null) JDD.Deref(upper);
-				throw e;
-			}
+			rewards = computeReachRewardsNumeric(tr, tra, tr01, sr, trr, b, inf, maybe, min);
 		}
 
 		if (zeroCostEndComponents != null)
 			for (JDDNode zcec : zeroCostEndComponents)
 				JDD.Deref(zcec);
 
+		// derefs
+		JDD.Deref(inf);
+		JDD.Deref(maybe);
+
+		return rewards;
+	}
+
+	/**
+	 * Compute expected accumulated reward until reaching the goal.
+	 * <br>[ REFS: <i>result</i>, DEREFS: <i>none</i> ]
+	 * @param tr the transition function
+	 * @param tra the transAction function
+	 * @param tr01 the 0/1 transition function
+	 * @param sr the state rewards
+	 * @param trr the transition rewards
+	 * @param b the goal states
+	 * @param inf the states with infinite value
+	 * @param maybe the maybe (todo) states
+	 * @param min min or max?
+	 * @return the computed state values
+	 */
+	private StateValues computeReachRewardsNumeric(JDDNode tr, JDDNode tra, JDDNode tr01, JDDNode sr, JDDNode trr, JDDNode b, JDDNode inf, JDDNode maybe, boolean min) throws PrismException
+	{
+		JDDNode rewardsMTBDD;
+		DoubleVector rewardsDV;
+		StateValues rewards = null;
+		// Local copy of setting
+		int engine = this.engine;
+
+		JDDNode lower = null;
+		JDDNode upper = null;
+
+		if (doIntervalIteration) {
+			if (min) {
+				throw new PrismNotSupportedException("Currently, Rmin is not supported with interval iteration and the symbolic engines");
+			}
+
+			OptionsIntervalIteration iiOptions = OptionsIntervalIteration.from(this);
+
+			double upperBound;
+			if (iiOptions.hasManualUpperBound()) {
+				upperBound = iiOptions.getManualUpperBound();
+				getLog().printWarning("Upper bound for interval iteration manually set to " + upperBound);
+			} else {
+				upperBound = ProbModelChecker.computeReachRewardsUpperBound(this, model, tr, sr, trr, b, maybe);
+			}
+			upper = JDD.ITE(maybe.copy(), JDD.Constant(upperBound), JDD.Constant(0));
+
+			double lowerBound;
+			if (iiOptions.hasManualLowerBound()) {
+				lowerBound = iiOptions.getManualLowerBound();
+				getLog().printWarning("Lower bound for interval iteration manually set to " + lowerBound);
+			} else {
+				lowerBound = 0.0;
+			}
+			lower = JDD.ITE(maybe.copy(), JDD.Constant(lowerBound), JDD.Constant(0));
+		}
+
+		// compute the rewards
+		mainLog.println("\nComputing remaining rewards...");
+		// switch engine, if necessary
+		if (engine == Prism.HYBRID) {
+			mainLog.println("Switching engine since hybrid engine does yet support this computation...");
+			engine = Prism.SPARSE;
+		}
+		mainLog.println("Engine: " + Prism.getEngineString(engine));
+		try {
+			switch (engine) {
+			case Prism.MTBDD:
+				if (doIntervalIteration) {
+					rewardsMTBDD = PrismMTBDD.NondetReachRewardInterval(tr, sr, trr, odd, nondetMask, allDDRowVars, allDDColVars, allDDNondetVars, b, inf, maybe, lower, upper, min, prism.getIntervalIterationFlags());
+				} else {
+					rewardsMTBDD = PrismMTBDD.NondetReachReward(tr, sr, trr, odd, nondetMask, allDDRowVars, allDDColVars, allDDNondetVars, b, inf, maybe, min);
+				}
+				rewards = new StateValuesMTBDD(rewardsMTBDD, model);
+				break;
+			case Prism.SPARSE:
+				if (doIntervalIteration) {
+					rewardsDV = PrismSparse.NondetReachRewardInterval(tr, tra, model.getSynchs(), sr, trr, odd, allDDRowVars, allDDColVars, allDDNondetVars, b, inf,
+							maybe, lower, upper, min, prism.getIntervalIterationFlags());
+				} else {
+					rewardsDV = PrismSparse.NondetReachReward(tr, tra, model.getSynchs(), sr, trr, odd, allDDRowVars, allDDColVars, allDDNondetVars, b, inf,
+							maybe, min);
+				}
+				rewards = new StateValuesDV(rewardsDV, model);
+				break;
+			case Prism.HYBRID:
+				throw new PrismException("Hybrid engine does not yet support this type of property (use sparse or MTBDD engine instead)");
+				// rewardsDV = PrismHybrid.NondetReachReward(tr, sr, trr,
+				// odd, allDDRowVars, allDDColVars, allDDNondetVars, b, inf,
+				// maybe, min);
+				// rewards = new StateValuesDV(rewardsDV, model);
+				// break;
+			default:
+				throw new PrismException("Unknown engine");
+			}
+		} finally {
+			if (lower != null) JDD.Deref(lower);
+			if (upper != null) JDD.Deref(upper);
+		}
+
 		if (doIntervalIteration) {
 			double max_v = rewards.maxFiniteOverBDD(maybe);
 			mainLog.println("Maximum finite value in solution vector at end of interval iteration: " + max_v);
 		}
-
-		// derefs
-		JDD.Deref(inf);
-		JDD.Deref(maybe);
-		if (lower != null) JDD.Deref(lower);
-		if (upper != null) JDD.Deref(upper);
 
 		return rewards;
 	}
