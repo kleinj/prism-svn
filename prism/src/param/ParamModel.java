@@ -115,9 +115,60 @@ public final class ParamModel extends ModelExplicit
 	}
 
 	@Override
-	public SuccessorsIterator getSuccessors(int s)
+	public SuccessorsIterator getSuccessors(final int s)
 	{
-		throw new UnsupportedOperationException();
+		return SuccessorsIterator.chain(new Iterator<SuccessorsIterator>() {
+			private int choice = 0;
+			private int choices = getNumChoices(s);
+
+			@Override
+			public boolean hasNext()
+			{
+				return choice < choices;
+			}
+
+			@Override
+			public SuccessorsIterator next()
+			{
+				return getSuccessors(s, choice++);
+			}
+		});
+	}
+
+	/**
+	 * Get a SuccessorsIterator for state s and choice i.
+	 * @param s The state
+	 * @param i Choice index
+	 */
+	public SuccessorsIterator getSuccessors(int s, int i)
+	{
+		return new SuccessorsIterator()
+		{
+			final int start = choiceBegin(stateBegin(s) + i);
+			int col = start;
+			final int end = choiceBegin(stateBegin(s) + i + 1);
+
+			@Override
+			public boolean hasNext()
+			{
+				return col < end;
+			}
+
+			@Override
+			public int nextInt()
+			{
+				assert (col < end);
+				int i = col;
+				col++;
+				return cols[i];
+			}
+
+			@Override
+			public boolean successorsAreDistinct()
+			{
+				return false;
+			}
+		};
 	}
 	
 	@Override
