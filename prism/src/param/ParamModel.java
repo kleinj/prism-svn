@@ -38,6 +38,9 @@ import parser.Values;
 import prism.ModelType;
 import prism.PrismException;
 import prism.PrismLog;
+import strat.MDStrategy;
+import explicit.MDPGeneric;
+import explicit.Model;
 import explicit.ModelExplicit;
 import explicit.SuccessorsIterator;
 import explicit.graphviz.Decorator;
@@ -49,12 +52,14 @@ import explicit.graphviz.Decorator;
  * This turned out the be the most convenient way to implement model checking
  * for parametric models.
  */
-public final class ParamModel extends ModelExplicit
+public final class ParamModel extends ModelExplicit implements MDPGeneric<Function>
 {
 	/** total number of nondeterministic choices over all states */
 	private int numTotalChoices;
 	/** total number of probabilistic transitions over all states */
 	private int numTotalTransitions;
+	/** the maximal number of choices per state, over all states */
+	private int numMaxChoices;
 	/** begin and end of state transitions */
 	private int[] rows;
 	/** begin and end of a distribution in a nondeterministic choice */
@@ -278,7 +283,6 @@ public final class ParamModel extends ModelExplicit
 		throw new UnsupportedOperationException();
 	}
 
-
 	@Override
 	public void exportTransitionsToDotFile(int i, PrismLog out, Iterable<explicit.graphviz.Decorator> decorators)
 	{
@@ -343,7 +347,19 @@ public final class ParamModel extends ModelExplicit
 	}
 
 	@Override
+	public void exportToDotFileWithStrat(PrismLog out, BitSet mark, int[] strat)
+	{
+		throw new UnsupportedOperationException();
+	}
+
+	@Override
 	public void exportToPrismLanguage(String filename) throws PrismException
+	{
+		throw new UnsupportedOperationException();
+	}
+
+	@Override
+	public Model constructInducedModel(MDStrategy strat)
 	{
 		throw new UnsupportedOperationException();
 	}
@@ -370,9 +386,35 @@ public final class ParamModel extends ModelExplicit
 		return stateEnd(state) - stateBegin(state);
 	}
 
-	public int getNumTotalChoices()
+	@Override
+	public int getMaxNumChoices()
+	{
+		return numMaxChoices;
+	}
+
+	@Override
+	public int getNumChoices()
 	{
 		return numTotalChoices;
+	}
+
+	@Override
+	public int getNumTransitions(int s, int i)
+	{
+		return choiceEnd(stateBegin(s) + i) - choiceBegin(stateBegin(s) + i);
+	}
+
+	@Override
+	public Object getAction(int s, int i)
+	{
+		return null;
+	}
+
+	@Override
+	public boolean areAllChoiceActionsUnique()
+	{
+		// we don't know
+		return false;
 	}
 
 	/**
@@ -403,8 +445,11 @@ public final class ParamModel extends ModelExplicit
 	 */
 	void finishState()
 	{
+		int state = numStates;
 		rows[numStates + 1] = numTotalChoices;
 		numStates++;
+
+		numMaxChoices = Math.max(numMaxChoices, getNumChoices(state));
 	}
 
 	/**
@@ -593,4 +638,5 @@ public final class ParamModel extends ModelExplicit
 	{
 		return functionFactory;
 	}
+
 }
