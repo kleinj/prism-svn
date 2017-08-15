@@ -40,6 +40,7 @@ import explicit.modelviews.MDPEquiv;
 import explicit.modelviews.MDPEquiv.StateChoicePair;
 import explicit.rewards.MDPRewards;
 import prism.PrismComponent;
+import prism.PrismDevNullLog;
 import prism.PrismException;
 
 /**
@@ -52,41 +53,78 @@ import prism.PrismException;
  * In the quotient, those zero-reward MECs are each collapsed to a single state,
  * with choices that have transitions outside the MEC preserved.
  */
-public class ZeroRewardECQuotient
+public class ZeroRewardECQuotient extends PrismComponent
 {
+	/** The quotient model, with all zero-reward MECs collapsed */
 	private MDPEquiv quotient;
+	/** The transformed reward structure for the quotient model */
 	private MDPRewards quotientRewards;
+	/** The equivalence relation for state indices in the same MEC */
+	private EquivalenceRelationInteger equiv;
+	/** The zero-reward sub-MDP of the original model (stored for strategy lifting) */
+	private MDPDroppedChoicesCached zeroRewMDP;
+	/** The MDP where all zero-reward action that lead back to the same MEC are removed (stored for strategy lifting) */
+	private MDPDroppedChoicesCached droppedZeroRewardLoops;
+	/** The number of zero-reward MECs */
 	private int numberOfZMECs;
 
 	private static final boolean debug = false;
 
-	private ZeroRewardECQuotient(MDPEquiv quotient, MDPRewards quotientRewards, int numberOfZMECs)
+	/**
+	 * Private constructor, called from static getQuotient method.
+	 * @param parent the parent PrismComponent
+	 * @param quotient The quotient model, with all zero-reward MECs collapsed
+	 * @param quotientRewards The transformed reward structure for the quotient model
+	 * @param equiv The equivalence relation for state indices in the same MEC
+	 * @param zeroRewMDP The zero-reward sub-MDP of the original model
+	 * @param droppedZeroRewardLoops The MDP where all zero-reward action that lead back to the same MEC are removed
+	 * @param numberOfZMECs The number of zero-reward MECs
+	 */
+	private ZeroRewardECQuotient(PrismComponent parent, MDPEquiv quotient, MDPRewards quotientRewards, EquivalenceRelationInteger equiv, MDPDroppedChoicesCached zeroRewMDP, MDPDroppedChoicesCached droppedZeroRewardLoops, int numberOfZMECs)
 	{
+		super(parent);
 		this.quotient = quotient;
 		this.quotientRewards = quotientRewards;
+		this.equiv = equiv;
+		this.zeroRewMDP = zeroRewMDP;
+		this.droppedZeroRewardLoops = droppedZeroRewardLoops;
 		this.numberOfZMECs = numberOfZMECs;
 	}
 
+	/** Get the quotient model */
 	public MDP getModel()
 	{
 		return quotient;
 	}
 
+	/** Get the rewards for the quotient model */
 	public MDPRewards getRewards()
 	{
 		return quotientRewards;
 	}
 
+	/** Get the number of zero-reward MECs */
 	public int getNumberOfZeroRewardMECs()
 	{
 		return numberOfZMECs;
 	}
 
+	/**
+	 * Get the non-representative states in the quotient model,
+	 * i.e., states that have been mapped to the representative for their MEC.
+	 * These states remain in the quotient model, but are trap states.
+	 */
 	public BitSet getNonRepresentativeStates()
 	{
 		return quotient.getNonRepresentativeStates();
 	}
 
+	/**
+	 * Map results from the quotient model to the original model.
+	 * <br>
+	 * For all the non-representative states, store the value computed
+	 * for the representative for their MEC.
+	 */
 	public void mapResults(double[] soln) {
 		for (int s : new IterableBitSet(quotient.getNonRepresentativeStates())) {
 			int representative = quotient.mapStateToRestrictedModel(s);
@@ -94,6 +132,98 @@ public class ZeroRewardECQuotient
 		}
 	}
 
+	/**
+	 * Lift a strategy from the quotient model to the original model.
+	 * <br>
+	 * For each MEC, compute the target state and choice in the original model,
+	 * i.e., lookup the state and choice corresponding to the choice selected
+	 * at the representative in the quotient model.
+	 * <br>
+	 * Then, for the other MEC states, compute a probability one strategy of
+	 * reaching this target state, taking only zero-reward actions.
+	 * <br>
+	 * Modifies {@code strat} to be a strategy in the original model.
+	 * @param strat the strategy in the quotient model (will be changed)
+	 */
+	public void liftStrategy(int[] strat) throws PrismException
+	{
+		// the states in zero-reward ECs
+		BitSet ecs = new BitSet();
+		// the target states in the ECs, i.e., those where the
+		// computed strategy leaves the EC (at least with positive probability)
+		BitSet targetStatesInEcs = new BitSet();
+
+		for (int i = 0; i < equiv.getNumClasses(); i++) {
+			BitSet ec = equiv.getIthEquivalenceClass(i);
+			int representative = equiv.getRepresentativeForIthEquivalenceClass(i);
+
+			if (debug)
+				getLog().println("Class " + i + ": " + ec + ", representative is " + representative);
+
+			int stratChoice = strat[representative];
+
+			int targetState;
+			int targetChoice;
+			if (stratChoice < 0) {
+				// -1 = unknown, -2 = arbitrary
+				// we will use the representative as the target state
+				targetState = representative;
+				targetChoice = stratChoice;  // keep same choice
+			} else {
+				StateChoicePair choice = quotient.mapToOriginalModelOrNull(representative, stratChoice);
+				if (choice == null) {
+					targetState = representative;
+					targetChoice = stratChoice;
+				} else {
+					targetState = choice.getState();
+					targetChoice = choice.getChoice();
+				}
+
+				// map back via dropped choices
+				targetChoice = droppedZeroRewardLoops.mapChoiceToOriginalModel(targetState, targetChoice);
+			}
+
+			if (debug)
+				getLog().println("Strat choice is " + stratChoice + ", target = " + targetState + ", targetChoice = " + targetChoice);
+
+			ecs.or(ec);
+			targetStatesInEcs.set(targetState);
+			strat[targetState] = targetChoice;
+		}
+
+
+		// compute prob1e strategy to EC target states *in the zero-reward fragment MDP*
+		// for the states in a zero-reward EC, remaining in the zero-reward ECs
+		// as all states are in a zero-reward EC, they have a probability 1 strategy
+		// for reaching at least one of the target states
+		// construct MDP model checker, for prob1e strategy computations
+		MDPModelChecker mc = new MDPModelChecker(this);
+		// silence prob1e output...
+		mc.setSilentPrecomputations(true);
+		BitSet prob1inEC = mc.prob1(zeroRewMDP, ecs, targetStatesInEcs, false, strat); // prob1e
+
+		assert(prob1inEC.equals(ecs));
+
+		// we now have to lift the choices from the zeroRewMDP to the original MDP
+		for (int s : IterableBitSet.getSetBits(ecs)) {
+			// skip target states
+			if (targetStatesInEcs.get(s))
+				continue;
+
+			// map choice in zeroRewMDP back to original MDP
+			strat[s] = zeroRewMDP.mapChoiceToOriginalModel(s, strat[s]);
+		}
+	}
+
+	/**
+	 * Get the zero-reward end component quotient for the given MDP and reward structure,
+	 * or {@code null} if there are no zero-reward end components.
+	 * @param parent the parent PrismComponent
+	 * @param mdp the MDP
+	 * @param restrict a subset of states
+	 * @param rewards the reward structure
+	 * @return the quotient, or {@code null} if there are no zero-reward end components.
+	 */
 	public static ZeroRewardECQuotient getQuotient(PrismComponent parent, MDP mdp, BitSet restrict, MDPRewards rewards) throws PrismException
 	{
 		PairPredicateInt positiveRewardChoice = (int s, int i) -> {
@@ -113,12 +243,13 @@ public class ZeroRewardECQuotient
 
 		List<BitSet> mecs = ecComputer.getMECStates();
 
+		// there are no end components in the zero-reward sub-MDP, return null
 		if (mecs.isEmpty()) {
 			return null;
 		}
 
 		// the equivalence relation on the states
-		EquivalenceRelationInteger equiv = new EquivalenceRelationInteger(mecs);
+		EquivalenceRelationInteger equiv = new EquivalenceRelationInteger.KeepSingletons(mecs);
 
 		// we drop zero reward loops on the equivalence classes
 		PairPredicateInt zeroRewardECloop = (int s, int i) -> {
@@ -140,8 +271,7 @@ public class ZeroRewardECQuotient
 		if (debug)
 			droppedZeroRewardLoops.exportToDotFile("zero-mec-loops-dropped.dot");
 
-		BasicModelTransformation<MDP, MDPEquiv> transform = MDPEquiv.transform(droppedZeroRewardLoops, equiv);
-		final MDPEquiv quotient = transform.getTransformedModel();
+		final MDPEquiv quotient = new MDPEquiv(droppedZeroRewardLoops, equiv);
 
 		MDPRewards quotientRewards = new MDPRewards() {
 			@Override
@@ -176,7 +306,7 @@ public class ZeroRewardECQuotient
 			quotient.exportToDotFile("zero-mec-quotient.dot", decorators);
 		}
 
-		return new ZeroRewardECQuotient(quotient, quotientRewards, mecs.size());
+		return new ZeroRewardECQuotient(parent, quotient, quotientRewards, equiv, zeroRewMDP, droppedZeroRewardLoops, mecs.size());
 	}
 
 }
