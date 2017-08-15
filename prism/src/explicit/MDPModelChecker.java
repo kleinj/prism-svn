@@ -2170,7 +2170,11 @@ public class MDPModelChecker extends ProbModelChecker
 			newInfStates.or(quotient.getNonRepresentativeStates());
 			int quotientModelStates = quotient.getModel().getNumStates() - newInfStates.cardinality();
 			mainLog.println("Computing Rmin in zero-reward EC quotient model (" + quotientModelStates + " relevant states)...");
-			res = computeReachRewardsNumeric(quotient.getModel(), quotient.getRewards(), mdpSolnMethod, target, newInfStates, min, init, known, strat);
+
+			// convert quotient MDP to MDPSparse, for performance
+			MDPSparse sparseQuotientMDP = new MDPSparse(quotient.getModel());
+
+			res = computeReachRewardsNumeric(sparseQuotientMDP, quotient.getRewards(), mdpSolnMethod, target, newInfStates, min, init, known, strat);
 			quotient.mapResults(res.soln);
 			if (strat != null) {
 				quotient.liftStrategy(strat);
