@@ -2243,14 +2243,14 @@ public class MDPModelChecker extends ProbModelChecker
 		if (min & doZeroMECCheckForMin) {
 			StopWatch zeroMECTimer = new StopWatch(mainLog);
 			zeroMECTimer.start("checking for zero-reward ECs");
-			mainLog.println("For Rmin, checking for zero-reward ECs...");
+			mainLog.println("For Rmin, checking for zero-reward end components...");
 			BitSet unknown = (BitSet) inf.clone();
 			unknown.flip(0, mdp.getNumStates());
 			unknown.andNot(target);
 			quotient = ZeroRewardECQuotient.getQuotient(this, mdp, unknown, mdpRewards);
 
 			if (quotient == null) {
-				zeroMECTimer.stop("no zero-reward ECs found, proceeding normally");
+				zeroMECTimer.stop("no zero-reward end components found, proceeding normally");
 			} else {
 				zeroMECTimer.stop("built quotient MDP with " + quotient.getNumberOfZeroRewardMECs() + " zero-reward MECs");
 			}
